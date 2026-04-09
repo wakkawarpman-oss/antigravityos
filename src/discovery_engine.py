@@ -42,6 +42,9 @@ import sqlite3
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+
+from models.observables import Observable, IdentityCluster, TIER_CONFIRMED, TIER_PROBABLE, TIER_UNVERIFIED
+from pipelines.resolution import EntityResolutionPipeline
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -181,35 +184,7 @@ def _is_garbage_target(value: str) -> bool:
 
 # ── Data classes ───────────────────────────────────────────────────
 
-@dataclass
-class Observable:
-    """A single discovered observable."""
-    obs_type: str          # phone, email, username, domain, url
-    value: str             # normalized value
-    source_tool: str       # which tool found it
-    source_target: str     # original target that was queried
-    source_file: str       # metadata JSON path
-    depth: int = 0         # discovery depth (0 = seed, 1 = first pivot, …)
-    raw: str = ""          # original raw text
-    urls: list[str] = field(default_factory=list)
-    is_original_target: bool = False        # was this the investigation input?
-    source_tools: set[str] = field(default_factory=set)  # all tools that found this
-    tier: str = TIER_UNVERIFIED             # confirmed / probable / unverified
 
-    @property
-    def fingerprint(self) -> str:
-        return f"{self.obs_type}:{self.value}"
-
-
-@dataclass
-class IdentityCluster:
-    """A resolved identity — one real-world entity."""
-    person_id: str
-    label: str                                # display name
-    observables: list[Observable] = field(default_factory=list)
-    profile_urls: list[str] = field(default_factory=list)
-    confidence: float = 0.0
-    sources: set[str] = field(default_factory=set)
 
 
 # ── Discovery Engine ──────────────────────────────────────────────
@@ -832,36 +807,7 @@ class DiscoveryEngine:
             return True
         return False
 
-    def _assign_tiers(self):
-        """Assign verification tiers based on evidence quality."""
-        for obs in self._all_observables:
-            if obs.is_original_target:
-                obs.tier = TIER_CONFIRMED
-            elif obs.source_tool.startswith("confirmed_import") or any(tool.startswith("confirmed_import") for tool in obs.source_tools):
-                obs.tier = TIER_CONFIRMED
-            elif len(obs.source_tools) >= 2:
-                obs.tier = TIER_CONFIRMED  # Multi-source corroboration
-            elif obs.depth == 0:
-                obs.tier = TIER_PROBABLE
-            else:
-                obs.tier = TIER_UNVERIFIED
-            self.db.execute(
-                "UPDATE observables SET tier = ? WHERE obs_type = ? AND value = ?",
-                (obs.tier, obs.obs_type, obs.value),
-            )
-        self.db.commit()
 
-    def _link_observables(self, a: Observable, b: Observable, reason: str, confidence: float):
-        # Ensure consistent ordering
-        key_a = (a.obs_type, a.value)
-        key_b = (b.obs_type, b.value)
-        if key_a > key_b:
-            key_a, key_b = key_b, key_a
-        self.db.execute(
-            "INSERT OR REPLACE INTO entity_links (obs_a_type, obs_a_value, obs_b_type, obs_b_value, link_reason, confidence) "
-            "VALUES (?, ?, ?, ?, ?, max(?, coalesce((SELECT confidence FROM entity_links WHERE obs_a_type=? AND obs_a_value=? AND obs_b_type=? AND obs_b_value=?), 0)))",
-            (*key_a, *key_b, reason, confidence, *key_a, *key_b),
-        )
 
     def _find_observable(self, value: str) -> Observable | None:
         for obs in self._all_observables:
@@ -993,6 +939,11 @@ class DiscoveryEngine:
         return clusters
 
     # ── 3.  Discovery Queue ───────────────────────────────────────
+
+
+    def resolve_entities(self) -> list[IdentityCluster]:
+        self.clusters = EntityResolutionPipeline(self.db, self._all_observables, self._platform_from_url).resolve_entities()
+        return self.clusters
 
     def get_pivot_queue(self) -> list[dict[str, Any]]:
         """Return observables needing further investigation with reasons."""
