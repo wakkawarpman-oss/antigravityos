@@ -40,3 +40,9 @@ exports/*.zip
 # Tor runtime artifacts
 data/tor/
 data/tor-logs/
+
+# Local QA/perf artifacts
+.coverage
+.hypothesis/
+mutants/
+perf/
