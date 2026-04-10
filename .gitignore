@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Secrets
+.env
+
+# Local runtime outputs
+runs/
+*.db
+*.sqlite
+*.sqlite3
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
+# Node.js
+node_modules/
+
+# Generated perf/debug artifacts
+test/data/*mb.txt
+debug-dumps/
+test/debug-*.json

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Union, Optional, Tuple, Dict
 
 from config import MAX_BODY_BYTES, REQUIRE_PROXY, RETRY_MAX_ATTEMPTS, RETRY_BASE_DELAY, RETRY_MAX_DELAY
 import time
@@ -14,10 +14,10 @@ def proxy_aware_request(
     url: str,
     method: str = "GET",
     timeout: float = 5.0,
-    proxy: str | None = None,
-    headers: dict[str, str] | None = None,
+    proxy: Optional[str] = None,
+    headers: Optional[Dict[str, str]] = None,
     max_body_bytes: int = MAX_BODY_BYTES,
-) -> tuple[int, dict[str, str], str]:
+) -> Tuple[int, Dict[str, str], str]:
     """Execute HTTP request with optional proxy and capped body read, including exponential backoff."""
     if REQUIRE_PROXY and not proxy:
         raise RuntimeError("HANNA_REQUIRE_PROXY=1 but no proxy provided for HTTP request")

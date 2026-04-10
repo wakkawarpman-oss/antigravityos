@@ -11,13 +11,15 @@ from models.observables import (
     TIER_UNVERIFIED,
 )
 
+from discovery_repository import DiscoveryRepository
+
 _HEX_ONLY_RE = re.compile(r"^[a-fA-F0-9]{16,}$")
 
 class EntityResolutionPipeline:
     """Graph-based clustering for OSINT observables."""
 
-    def __init__(self, db: sqlite3.Connection, observables: list[Observable], platform_from_url_func):
-        self.db = db
+    def __init__(self, repo: DiscoveryRepository, observables: list[Observable], platform_from_url_func):
+        self.repo = repo
         self._all_observables = observables
         self._platform_from_url = platform_from_url_func
 
@@ -49,7 +51,6 @@ class EntityResolutionPipeline:
                 if self._names_match(a.value, b.value):
                     self._link_observables(a, b, "name_match", 0.6)
 
-        self.db.commit()
 
         # Step 4: Assign verification tiers
         self._assign_tiers()
@@ -83,11 +84,8 @@ class EntityResolutionPipeline:
                 obs.tier = TIER_PROBABLE
             else:
                 obs.tier = TIER_UNVERIFIED
-            self.db.execute(
-                "UPDATE observables SET tier = ? WHERE obs_type = ? AND value = ?",
-                (obs.tier, obs.obs_type, obs.value),
-            )
-        self.db.commit()
+            self.repo.update_observable_tier(obs.obs_type, obs.value, obs.tier)
+        # self.repo.commit()  # commit is handled inside repo methods if needed, or explicitly at the end
 
     def _link_observables(self, a: Observable, b: Observable, reason: str, confidence: float):
         # Ensure consistent ordering
@@ -95,11 +93,7 @@ class EntityResolutionPipeline:
         key_b = (b.obs_type, b.value)
         if key_a > key_b:
             key_a, key_b = key_b, key_a
-        self.db.execute(
-            "INSERT OR REPLACE INTO entity_links (obs_a_type, obs_a_value, obs_b_type, obs_b_value, link_reason, confidence) "
-            "VALUES (?, ?, ?, ?, ?, max(?, coalesce((SELECT confidence FROM entity_links WHERE obs_a_type=? AND obs_a_value=? AND obs_b_type=? AND obs_b_value=?), 0)))",
-            (*key_a, *key_b, reason, confidence, *key_a, *key_b),
-        )
+        self.repo.link_observables(key_a, key_b, reason, confidence)
 
     def _build_clusters(self) -> list[IdentityCluster]:
         """Union-Find transitive closure over entity_links — tier-aware."""
@@ -122,7 +116,7 @@ class EntityResolutionPipeline:
                 nodes[ra] = rb
 
         # Only apply links where at least one side is confirmed/probable
-        for row in self.db.execute("SELECT obs_a_type, obs_a_value, obs_b_type, obs_b_value, confidence FROM entity_links"):
+        for row in self.repo.get_entity_links():
             fp_a = f"{row[0]}:{row[1]}"
             fp_b = f"{row[2]}:{row[3]}"
             if fp_a in nodes and fp_b in nodes:
@@ -172,9 +166,7 @@ class EntityResolutionPipeline:
             seen_platforms: dict[str, str] = {}
             for obs in obs_list:
                 if obs.obs_type == "username":
-                    rows = self.db.execute(
-                        "SELECT url FROM profile_urls WHERE username = ?", (obs.value,)
-                    ).fetchall()
+                    rows = self.repo.get_profile_urls_for_username(obs.value)
                     for r in rows:
                         url = r[0]
                         platform = self._platform_from_url(url)
@@ -196,9 +188,7 @@ class EntityResolutionPipeline:
                 tool_bonus = min(0.2, 0.05 * len(source_tools_set))
                 cluster_fingerprints = {obs.fingerprint for obs in obs_list}
                 max_link_confidence = 0.0
-                for row in self.db.execute(
-                    "SELECT obs_a_type, obs_a_value, obs_b_type, obs_b_value, confidence FROM entity_links"
-                ):
+                for row in self.repo.get_entity_links():
                     fp_a = f"{row[0]}:{row[1]}"
                     fp_b = f"{row[2]}:{row[3]}"
                     if fp_a in cluster_fingerprints and fp_b in cluster_fingerprints:

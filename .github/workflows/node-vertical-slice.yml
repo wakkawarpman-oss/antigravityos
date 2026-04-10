@@ -1,0 +1,43 @@
+name: Node Vertical Slice
+
+on:
+  pull_request:
+    paths:
+      - "app.js"
+      - "package.json"
+      - "plugins/**"
+      - "routes/**"
+      - "test/**"
+      - ".github/workflows/node-vertical-slice.yml"
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  test-vertical-slice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run vertical slice contract tests
+        env:
+          JWT_SECRET: ci-test-secret
+          TAP_DISABLE_COVERAGE: "1"
+        run: npm test
+
+      - name: Run core route contract tests
+        env:
+          JWT_SECRET: ci-test-secret
+        run: npm run test:core

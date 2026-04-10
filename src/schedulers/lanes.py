@@ -196,6 +196,14 @@ class LaneScheduler:
                             },
                         )
             finally:
+                if hasattr(pool, "_processes"):
+                    import os
+                    import signal
+                    for pid in list(pool._processes.keys()):
+                        try:
+                            os.kill(pid, signal.SIGKILL)
+                        except OSError:
+                            pass
                 pool.shutdown(wait=False, cancel_futures=True)
 
             lane_ok = sum(1 for tr in result.task_results if tr.lane == lane_name and not tr.error)

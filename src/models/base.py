@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional, Union, List, Dict, Set, Tuple
 
 from adapters.base import ReconHit, ReconReport
 
@@ -20,8 +20,8 @@ class AdapterOutcome:
     module_name: str
     lane: str
     hits: list[ReconHit] = field(default_factory=list)
-    error: str | None = None
-    error_kind: str | None = None
+    error: Optional[str] = None
+    error_kind: Optional[str] = None
     elapsed_sec: float = 0.0
     log_path: str = ""
 
@@ -80,7 +80,7 @@ class RunResult:
         queued_modules = [str(item) for item in self.extra.get("queued_modules", []) if str(item)]
         queued = len(queued_modules) if queued_modules else max(len(self.outcomes), len(self.modules_run))
 
-        error_entries: set[tuple[str, str, str | None]] = set()
+        error_entries: Set[Tuple[str, str, Optional[str]]] = set()
         for outcome in self.outcomes:
             if outcome.error:
                 error_entries.add((outcome.module_name, outcome.error, outcome.error_kind))

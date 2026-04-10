@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "target_name": "Hanna Dosenko",
+  "mode": "chain",
+  "modules_run": [
+    "ua_phone"
+  ],
+  "outcomes": [
+    {
+      "module_name": "ua_phone",
+      "lane": "chain",
+      "hits": [],
+      "error": "HANNA_REQUIRE_PROXY=1 but no proxy provided to UAPhoneAdapter. Set a proxy or unset HANNA_REQUIRE_PROXY to allow clearnet access.",
+      "error_kind": "adapter_error",
+      "elapsed_sec": 0.0,
+      "log_path": ""
+    }
+  ],
+  "all_hits": [],
+  "cross_confirmed": [],
+  "new_phones": [],
+  "new_emails": [],
+  "errors": [
+    {
+      "module": "ua_phone",
+      "error": "HANNA_REQUIRE_PROXY=1 but no proxy provided to UAPhoneAdapter. Set a proxy or unset HANNA_REQUIRE_PROXY to allow clearnet access.",
+      "error_kind": "adapter_error"
+    }
+  ],
+  "started_at": "2026-04-09T09:12:54.172497",
+  "finished_at": "2026-04-09T09:12:55.377526",
+  "runtime_summary": {
+    "target_name": "Hanna Dosenko",
+    "mode": "chain",
+    "queued": 1,
+    "completed": 0,
+    "failed": 1,
+    "timed_out": 0,
+    "skipped_missing_credentials": 0,
+    "missing_binary": 0,
+    "dependency_unavailable": 0,
+    "worker_crash": 0,
+    "exports": [],
+    "report_mode": "shareable"
+  },
+  "extra": {
+    "queued_modules": [
+      "ua_phone"
+    ],
+    "ingestion": {
+      "ingested": 0,
+      "rejected": 35,
+      "skipped": 39
+    },
+    "clusters": 0,
+    "output_path": "/Users/admin/Desktop/ОСІНТ_ВИВІД/runs/exports/html/dossiers/discovery_dossier.html",
+    "report_mode": "shareable",
+    "stats": {
+      "total_metadata_files": 0,
+      "total_observables": 37627,
+      "confirmed_observables": 0,
+      "probable_observables": 0,
+      "unverified_observables": 0,
+      "rejected_targets": 35,
+      "entity_links": 93,
+      "profile_urls": 0,
+      "profile_verification": {},
+      "identity_clusters": 0,
+      "pending_pivots": 75230,
+      "tool_stats": {
+        "phone": {
+          "success": 16,
+          "failed": 2,
+          "observables": 0
+        },
+        "domain": {
+          "success": 20,
+          "failed": 5,
+          "observables": 0
+        },
+        "health": {
+          "success": 9,
+          "failed": 0,
+          "observables": 0
+        },
+        "username": {
+          "success": 13,
+          "failed": 0,
+          "observables": 0
+        },
+        "whatweb": {
+          "success": 2,
+          "failed": 0,
+          "observables": 0
+        },
+        "dnsenum": {
+          "success": 0,
+          "failed": 1,
+          "observables": 0
+        },
+        "oneshot_batch": {
+          "success": 4,
+          "failed": 1,
+          "observables": 0
+        },
+        "unknown": {
+          "success": 0,
+          "failed": 1,
+          "observables": 0
+        }
+      }
+    }
+  }
+}

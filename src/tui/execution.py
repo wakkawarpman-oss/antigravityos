@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Union, Optional, List, Dict, Tuple
 
 from adapters.base import ReconHit, ReconReport
 from config import DEFAULT_DB_PATH, RUNS_ROOT
@@ -19,23 +19,23 @@ from worker import build_tasks
 
 @dataclass
 class TUIExecutionConfig:
-    target: str | None = None
-    modules: list[str] = field(default_factory=list)
-    manual_module: str | None = None
-    known_phones: list[str] = field(default_factory=list)
-    known_usernames: list[str] = field(default_factory=list)
+    target: Optional[str] = None
+    modules: List[str] = field(default_factory=list)
+    manual_module: Optional[str] = None
+    known_phones: List[str] = field(default_factory=list)
+    known_usernames: List[str] = field(default_factory=list)
     workers: int = 4
     db_path: str = str(DEFAULT_DB_PATH)
     exports_dir: str = str(RUNS_ROOT / "exports")
-    output_path: str | None = None
-    export_formats: list[str] = field(default_factory=list)
-    export_dir: str | None = None
+    output_path: Optional[str] = None
+    export_formats: List[str] = field(default_factory=list)
+    export_dir: Optional[str] = None
     report_mode: str = "shareable"
     verify: bool = False
     verify_all: bool = False
     verify_content: bool = False
-    proxy: str | None = None
-    leak_dir: str | None = None
+    proxy: Optional[str] = None
+    leak_dir: Optional[str] = None
     no_preflight: bool = False
 
 
@@ -205,7 +205,7 @@ def _run_chain(config: TUIExecutionConfig, modules: list[str], event_sink: Event
     outcomes: list[AdapterOutcome] = []
     errors: list[dict] = []
     all_hits: list[ReconHit] = []
-    recon_summary: dict | None = None
+    recon_summary: Optional[Dict] = None
     if config.target or modules:
         _emit(event_sink, "phase", phase="deep_recon", detail=f"dispatching {len(modules)} module(s)")
         report = _run_deep_recon_live(engine, config, modules, event_sink)
@@ -276,8 +276,9 @@ def _run_deep_recon_live(
     modules: list[str],
     event_sink: EventSink,
 ) -> ReconReport:
-    known_phones = [obs.value for obs in engine._all_observables if obs.obs_type == "phone"]
-    known_usernames = [obs.value for obs in engine._all_observables if obs.obs_type == "username"]
+    all_obs = engine.repo.get_all_observables()
+    known_phones = [obs.value for obs in all_obs if obs.obs_type == "phone"]
+    known_usernames = [obs.value for obs in all_obs if obs.obs_type == "username"]
     known_phones.extend(phone for phone in config.known_phones if phone)
     known_usernames.extend(user for user in config.known_usernames if user)
     known_phones = sorted(set(known_phones))
@@ -327,18 +328,13 @@ def _run_deep_recon_live(
         )
         if obs:
             new_obs_count += 1
-            engine.db.execute(
-                "INSERT OR IGNORE INTO discovery_queue (obs_type, value, suggested_tools, reason, depth, state) VALUES (?, ?, ?, ?, ?, ?)",
-                (
-                    hit.observable_type,
-                    hit.value,
-                    json.dumps(["cross_verify", "getcontact"]),
-                    f"Found by {hit.source_module} (conf={hit.confidence:.0%}): {hit.source_detail}",
-                    1,
-                    "pending",
-                ),
+            engine.repo.enqueue_discovery(
+                obs_type=hit.observable_type,
+                value=hit.value,
+                suggested_tools=["cross_verify", "getcontact"],
+                reason=f"Found by {hit.source_module} (conf={hit.confidence:.0%}): {hit.source_detail}",
+                depth=1
             )
-    engine.db.commit()
     _emit(event_sink, "activity", level="info", text=f"Deep recon added {new_obs_count} observable(s)")
     return report
 

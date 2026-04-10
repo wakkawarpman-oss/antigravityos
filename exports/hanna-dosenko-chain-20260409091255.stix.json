@@ -1,0 +1,26 @@
+{
+  "type": "bundle",
+  "id": "bundle--e2004e8e-3d14-55c4-9c9d-de09c0ab6b31",
+  "objects": [
+    {
+      "type": "identity",
+      "spec_version": "2.1",
+      "id": "identity--ed67315d-6b58-57f8-a7f7-efa727944ca1",
+      "created": "2026-04-09T09:12:55.377526",
+      "modified": "2026-04-09T09:12:55.377526",
+      "name": "Hanna Dosenko",
+      "identity_class": "individual"
+    },
+    {
+      "type": "note",
+      "spec_version": "2.1",
+      "id": "note--7f6f0c5c-fc30-58df-a3b2-7932193ec87e",
+      "created": "2026-04-09T09:12:55.377526",
+      "modified": "2026-04-09T09:12:55.377526",
+      "content": "{\"mode\": \"chain\", \"modules_run\": [\"ua_phone\"], \"errors\": [{\"module\": \"ua_phone\", \"error\": \"HANNA_REQUIRE_PROXY=1 but no proxy provided to UAPhoneAdapter. Set a proxy or unset HANNA_REQUIRE_PROXY to allow clearnet access.\", \"error_kind\": \"adapter_error\"}], \"extra\": {\"queued_modules\": [\"ua_phone\"], \"ingestion\": {\"ingested\": 0, \"rejected\": 35, \"skipped\": 39}, \"clusters\": 0, \"output_path\": \"/Users/admin/Desktop/ОСІНТ_ВИВІД/runs/exports/html/dossiers/discovery_dossier.html\", \"report_mode\": \"shareable\", \"stats\": {\"total_metadata_files\": 0, \"total_observables\": 37627, \"confirmed_observables\": 0, \"probable_observables\": 0, \"unverified_observables\": 0, \"rejected_targets\": 35, \"entity_links\": 93, \"profile_urls\": 0, \"profile_verification\": {}, \"identity_clusters\": 0, \"pending_pivots\": 75230, \"tool_stats\": {\"phone\": {\"success\": 16, \"failed\": 2, \"observables\": 0}, \"domain\": {\"success\": 20, \"failed\": 5, \"observables\": 0}, \"health\": {\"success\": 9, \"failed\": 0, \"observables\": 0}, \"username\": {\"success\": 13, \"failed\": 0, \"observables\": 0}, \"whatweb\": {\"success\": 2, \"failed\": 0, \"observables\": 0}, \"dnsenum\": {\"success\": 0, \"failed\": 1, \"observables\": 0}, \"oneshot_batch\": {\"success\": 4, \"failed\": 1, \"observables\": 0}, \"unknown\": {\"success\": 0, \"failed\": 1, \"observables\": 0}}}}}",
+      "object_refs": [
+        "identity--ed67315d-6b58-57f8-a7f7-efa727944ca1"
+      ]
+    }
+  ]
+}

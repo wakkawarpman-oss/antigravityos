@@ -3,10 +3,12 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+import asyncio
 from adapters.base import ReconHit, ReconReport
 from config import RUNS_ROOT
 from registry import resolve_modules
-from schedulers.lanes import LaneScheduler, dedup_and_confirm
+from schedulers.lanes import dedup_and_confirm
+from schedulers.dispatcher import MultiLaneDispatcher
 from worker import build_tasks
 
 log = logging.getLogger("hanna.recon")
@@ -51,10 +53,18 @@ class DeepReconRunner:
         modules_run: list[str] = []
 
         Path(self.log_dir).mkdir(parents=True, exist_ok=True)
-        scheduled = LaneScheduler.dispatch(tasks=tasks, max_workers=self.max_workers, log_dir=self.log_dir, label="deep_recon")
-        errors.extend(scheduled.errors)
-        modules_run = scheduled.modules_run
-        all_hits = scheduled.all_hits
+        
+        # New Async Dispatcher
+        dispatcher = MultiLaneDispatcher(
+            max_parallel_tasks=self.max_workers,
+            event_callback=None  # Can be passed from TUI in future iterations
+        )
+        
+        # Run async dispatcher in a sync bridge
+        all_hits = asyncio.run(dispatcher.run_tasks(tasks, label="deep_recon"))
+        
+        errors.extend(dispatcher.errors)
+        modules_run = list(dispatcher.modules_run)
 
         deduped, cross_confirmed = dedup_and_confirm(all_hits)
 

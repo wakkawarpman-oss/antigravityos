@@ -1,0 +1,72 @@
+name: Production Deploy
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Security gate (high severity blocks)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Auth boundary gate
+        env:
+          JWT_SECRET: ci-test-secret
+        run: npm run test:core
+
+      - name: Install and test
+        run: |
+          npm run test:all
+          npm run production-readiness -- --skip-install
+
+      - name: Prelaunch gate
+        run: |
+          ./scripts/prelaunch_check.sh
+          SUMMARY="$(ls -1dt .cache/prelaunch/* | head -n1)/final-summary.json"
+          ./scripts/prelaunch_gate.sh "$SUMMARY" \
+            --require-check preflight \
+            --require-check smart_summary \
+            --require-check focused_regression
+
+      - name: Build Docker image
+        run: |
+          docker build -f Dockerfile.prod -t hanna:${{ github.sha }} .
+          docker tag hanna:${{ github.sha }} hanna:latest
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd /opt/hanna
+            docker compose -f docker-compose.prod.yml pull || true
+            docker compose -f docker-compose.prod.yml up -d --build
+            docker system prune -f
