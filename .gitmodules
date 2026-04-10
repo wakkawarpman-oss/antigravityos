@@ -1,15 +1,19 @@
 [submodule "tools/EyeWitness"]
 	path = tools/EyeWitness
 	url = https://github.com/RedSiege/EyeWitness.git
+	ignore = untracked
 [submodule "tools/blackbird"]
 	path = tools/blackbird
 	url = https://github.com/p1ngul1n0/blackbird.git
+	ignore = untracked
 [submodule "tools/metagoofil"]
 	path = tools/metagoofil
 	url = https://github.com/opsdisk/metagoofil.git
+	ignore = untracked
 [submodule "tools/recon-ng"]
 	path = tools/recon-ng
 	url = https://github.com/lanmaster53/recon-ng.git
+	ignore = untracked
 [submodule "tools/GetContactAPI"]
 	path = tools/GetContactAPI
 	url = https://github.com/SijyKijy/GetContactAPI.git
