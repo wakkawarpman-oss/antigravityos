@@ -22,7 +22,7 @@ class UAPhoneAdapter(ReconAdapter):
       - TELEGRAM_BOT_TOKEN     → Bot API phone resolution
       - GETCONTACT_TOKEN       → GetContact API token (from rooted device)
       - GETCONTACT_AES_KEY     → GetContact AES key  (from rooted device)
-    If env vars are absent, the adapter falls back to the passive stub.
+    If env vars are absent, the adapter returns no hits (no pseudo evidence).
     """
 
     name = "ua_phone"
@@ -86,16 +86,7 @@ class UAPhoneAdapter(ReconAdapter):
         """Async Telegram resolution."""
         token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
         if not token:
-            # Passive stub — log for manual follow-up
-            yield ReconHit(
-                observable_type="phone",
-                value=phone,
-                source_module=self.name,
-                source_detail="telegram_phone_check:pending",
-                confidence=0.0,
-                timestamp=datetime.now().isoformat(),
-                raw_record={"action": "manual_check_required", "service": "telegram", "phone": phone},
-            )
+            log.debug("TELEGRAM_BOT_TOKEN missing; skipping Telegram live lookup for %s", phone)
             return
 
         # Use Telegram Bot API — getChat with phone (unofficial but widespread)
@@ -158,8 +149,14 @@ class UAPhoneAdapter(ReconAdapter):
         )
 
     def _check_telegram_phone_live(self, phone: str, target_name: str) -> List[ReconHit]:
-        # Legacy wrapper
-        return asyncio.run(self._check_telegram_phone_live_async(phone, target_name))
+        # Legacy wrapper for sync execution paths.
+        async def _collect() -> List[ReconHit]:
+            rows: List[ReconHit] = []
+            async for hit in self._check_telegram_phone_live_async(phone, target_name):
+                rows.append(hit)
+            return rows
+
+        return asyncio.run(_collect())
 
     # ── GetContact lookup ────────────────────────────────────────
 
@@ -241,11 +238,11 @@ class UAPhoneAdapter(ReconAdapter):
             )
 
     def _check_getcontact_phone(self, phone: str, target_name: str) -> List[ReconHit]:
-        # Legacy wrapper
-        return asyncio.run(self._check_getcontact_phone_async(phone, target_name))
+        # Legacy wrapper for sync execution paths.
+        async def _collect() -> List[ReconHit]:
+            rows: List[ReconHit] = []
+            async for hit in self._check_getcontact_phone_async(phone, target_name):
+                rows.append(hit)
+            return rows
 
-        remaining = info.get("remaining_searches")
-        if remaining is not None:
-            log.info("GetContact remaining searches: %s", remaining)
-
-        return hits
+        return asyncio.run(_collect())

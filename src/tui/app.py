@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shlex
+import os
 from threading import Event, Thread
 from time import sleep
 
@@ -157,7 +158,9 @@ class HannaTUIApp(App[None]):
         self.push_screen("overview")
         self._focus_command_input()
         self.notify(STARTUP_NOTIFY_TEXT, title="HANNA")
-        self._start_mock_lane_stream()
+        # Demo stream is opt-in only; production mode must show real pipeline events.
+        if os.getenv("HANNA_TUI_ENABLE_DEMO_STREAM", "0").strip().lower() in {"1", "true", "yes", "on"}:
+            self._start_mock_lane_stream()
 
     def on_unmount(self) -> None:
         self._shutdown_event.set()
