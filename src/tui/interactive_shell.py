@@ -8,11 +8,14 @@ behavior stays identical to direct `hanna` CLI usage.
 
 from __future__ import annotations
 
+import os
 import shlex
 import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
+
+from tui.main_menu.widgets.menu_list import CHOICES
 
 try:
     from prompt_toolkit import prompt as pt_prompt
@@ -50,41 +53,85 @@ def _menu_loop() -> None:
     print("Hanna OSINT Interactive Menu")
     print("=" * 40)
     while True:
-        print("\n1. Run OSINT pipeline")
-        print("2. Release gate (prelaunch)")
-        print("3. Full canary rehearsal")
-        print("4. Status/info")
-        print("5. Launch main TUI")
-        print("6. Prompt mode")
-        print("7. Nav demo (logs/evidence search)")
-        print("8. Exit")
+        for idx, (_key, label) in enumerate(CHOICES, start=1):
+            print(f"{idx}. {label}")
         try:
             choice = input("Choice: ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nGoodbye")
             return
 
-        if choice == "1":
-            target = _menu_target_prompt()
-            if target:
-                _run_hanna(["aggregate", "--target", target])
-        elif choice == "2":
-            _run_hanna(["preflight"])  # prelaunch wrapper remains script-driven
-        elif choice == "3":
-            print("Use scripts/prelaunch_check.sh with rehearsal flags for full canary.")
-        elif choice == "4":
-            _run_hanna(["list"])
-        elif choice == "5":
-            _run_hanna(["tui", "--plain"])
-        elif choice == "6":
-            _prompt_loop()
-        elif choice == "7":
-            _nav_demo()
-        elif choice == "8":
+        key = _resolve_choice_key(choice)
+        if not key:
+            print(f"Invalid choice. Use 1-{len(CHOICES)}.")
+            continue
+
+        if not _dispatch_menu_choice(key):
             print("Goodbye")
             return
-        else:
-            print("Invalid choice. Use 1-8.")
+
+
+def _resolve_choice_key(choice: str) -> Optional[str]:
+    if choice.isdigit():
+        idx = int(choice) - 1
+        if 0 <= idx < len(CHOICES):
+            return CHOICES[idx][0]
+    names = {key for key, _label in CHOICES}
+    if choice in names:
+        return choice
+    return None
+
+
+def _dispatch_menu_choice(key: str) -> bool:
+    if key == "run":
+        target = _menu_target_prompt()
+        if target:
+            _run_hanna(["aggregate", "--target", target])
+        return True
+
+    if key == "prelaunch":
+        _run_prelaunch_script(rehearsal=False)
+        return True
+
+    if key == "rehearsal":
+        _run_prelaunch_script(rehearsal=True)
+        return True
+
+    if key == "status":
+        _run_hanna(["list"])
+        return True
+
+    if key == "textual_tui":
+        _run_hanna(["tui", "--plain"])
+        return True
+
+    if key == "prompt":
+        _prompt_loop()
+        return True
+
+    if key == "nav_demo":
+        _nav_demo()
+        return True
+
+    if key == "shell":
+        _prompt_loop()
+        return True
+
+    if key == "exit":
+        return False
+
+    print(f"Unsupported choice: {key}")
+    return True
+
+
+def _run_prelaunch_script(rehearsal: bool) -> int:
+    script = Path(__file__).resolve().parents[2] / "scripts" / "prelaunch_check.sh"
+    env = os.environ.copy()
+    if rehearsal:
+        env.setdefault("HANNA_RUN_FULL_REHEARSAL", "1")
+        env.setdefault("HANNA_FULL_REHEARSAL_TARGET", "example.com")
+        env.setdefault("HANNA_FULL_REHEARSAL_MODULES", "pd-infra-quick")
+    return int(subprocess.call(["bash", str(script)], cwd=str(script.parent.parent), env=env))
 
 
 def _read_head_lines(path: Path, limit: int = 300) -> list[str]:

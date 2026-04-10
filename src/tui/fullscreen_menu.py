@@ -1,51 +1,16 @@
 #!/usr/bin/env python3
-"""Full-screen operator menu for HANNA.
+"""Textual-based operator menu for HANNA.
 
-This menu is optional and uses prompt_toolkit when available.
-Navigation: Up/Down arrows, Enter to execute, Escape to exit.
+Business actions are unchanged: this module only maps menu selections to
+existing CLI and script entrypoints.
 """
 
 from __future__ import annotations
 
 import os
-import shlex
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
-
-from tui.nav import show_help
-
-try:
-    from prompt_toolkit.application import Application
-    from prompt_toolkit.enums import EditingMode
-    from prompt_toolkit.key_binding import KeyBindings
-    from prompt_toolkit.layout import HSplit, Layout, Window
-    from prompt_toolkit.layout.controls import FormattedTextControl
-    from prompt_toolkit.styles import Style
-except Exception as exc:  # pragma: no cover
-    Application = None
-    EditingMode = None
-    KeyBindings = None
-    HSplit = None
-    Layout = None
-    Window = None
-    FormattedTextControl = None
-    Style = None
-    _IMPORT_ERROR = exc
-else:
-    _IMPORT_ERROR = None
-
-
-CHOICES: list[tuple[str, str]] = [
-    ("run", "Run OSINT pipeline"),
-    ("prelaunch", "Release gate (prelaunch)"),
-    ("rehearsal", "Full canary rehearsal"),
-    ("status", "Status/info"),
-    ("textual_tui", "Launch main Textual TUI"),
-    ("shell", "Interactive CLI shell"),
-    ("exit", "Exit"),
-]
 
 
 def _repo_root() -> Path:
@@ -79,12 +44,14 @@ def _run_rehearsal() -> int:
     return int(subprocess.call(["bash", str(script)], cwd=str(_repo_root()), env=env))
 
 
-def _dispatch(choice: str) -> None:
+def _dispatch(choice: str, target_override: str = "") -> None:
     if choice == "run":
-        try:
-            target = input("Target (email/phone/username/domain/IP): ").strip()
-        except (KeyboardInterrupt, EOFError):
-            return
+        target = (target_override or "").strip()
+        if not target:
+            try:
+                target = input("Target (email/phone/username/domain/IP): ").strip()
+            except (KeyboardInterrupt, EOFError):
+                return
         if not target:
             print("Empty target, skipped.")
             return
@@ -113,6 +80,24 @@ def _dispatch(choice: str) -> None:
             _run_cli(["tui", "--plain"], capture=False)
         return
 
+    if choice == "prompt":
+        try:
+            from tui.interactive_shell import _prompt_loop
+
+            _prompt_loop()
+        except Exception as exc:
+            print(f"Prompt mode unavailable: {exc}")
+        return
+
+    if choice == "nav_demo":
+        try:
+            from tui.interactive_shell import _nav_demo
+
+            _nav_demo()
+        except Exception as exc:
+            print(f"Nav demo unavailable: {exc}")
+        return
+
     if choice == "shell":
         try:
             from tui.interactive_shell import main as shell_main
@@ -123,91 +108,25 @@ def _dispatch(choice: str) -> None:
         return
 
 
-def _build_fragments(selected_index: int) -> list[tuple[str, str]]:
-    fragments: list[tuple[str, str]] = [
-        ("class:title", " HANNA Full-Screen Menu\n"),
-        ("class:subtitle", " Use Up/Down + Enter. Esc to quit.\n\n"),
-    ]
-    for idx, (_key, label) in enumerate(CHOICES):
-        if idx == selected_index:
-            fragments.append(("class:choice.focus", f" > {idx + 1}. {label}\n"))
-        else:
-            fragments.append(("class:choice", f"   {idx + 1}. {label}\n"))
-    fragments.append(("class:footer", "\nEsc exits menu."))
-    return fragments
-
-
-def _menu_once() -> Optional[str]:
-    state = {"selected": 0}
-
-    def _text() -> list[tuple[str, str]]:
-        return _build_fragments(state["selected"])
-
-    control = FormattedTextControl(_text)
-    window = Window(content=control)
-
-    kb = KeyBindings()
-
-    @kb.add("up")
-    def _up(event) -> None:
-        state["selected"] = max(0, state["selected"] - 1)
-        event.app.invalidate()
-
-    @kb.add("down")
-    def _down(event) -> None:
-        state["selected"] = min(len(CHOICES) - 1, state["selected"] + 1)
-        event.app.invalidate()
-
-    @kb.add("enter")
-    def _enter(event) -> None:
-        event.app.exit(result=CHOICES[state["selected"]][0])
-
-    @kb.add("escape")
-    def _escape(event) -> None:
-        event.app.exit(result="exit")
-
-    @kb.add("h")
-    def _help(_event) -> None:
-        show_help(
-            {
-                "up/down": ("Move selection", None),
-                "enter": ("Execute selected action", None),
-                "escape": ("Exit menu", None),
-                "h": ("Open this help palette", None),
-            },
-            title="HANNA Menu Keys",
-        )
-
-    app = Application(
-        layout=Layout(HSplit([window])),
-        key_bindings=kb,
-        full_screen=True,
-        editing_mode=EditingMode.EMACS,
-        style=Style.from_dict(
-            {
-                "title": "#b1b1b1 bold",
-                "subtitle": "#aaaaaa",
-                "choice": "#ffffff",
-                "choice.focus": "bg:#005f5f #ffffff bold",
-                "footer": "#888888",
-            }
-        ),
-    )
-    return app.run()
-
-
 def main() -> int:
-    if _IMPORT_ERROR is not None:
-        print("prompt_toolkit is required for full-screen menu.", file=sys.stderr)
-        print("Install it with: pip install prompt_toolkit", file=sys.stderr)
-        return 1
+    try:
+        from tui.main_menu.app import run_main_menu
+    except Exception as exc:
+        print(f"Textual main menu unavailable ({exc}), switching to interactive menu.", file=sys.stderr)
+        try:
+            from tui.interactive_shell import main as shell_main
+
+            return int(shell_main())
+        except Exception as inner_exc:
+            print(f"Interactive menu fallback failed: {inner_exc}", file=sys.stderr)
+            return 1
 
     while True:
-        choice = _menu_once()
-        if not choice or choice == "exit":
+        selection = run_main_menu()
+        if not selection or selection.choice == "exit":
             print("Goodbye")
             return 0
-        _dispatch(choice)
+        _dispatch(selection.choice, target_override=selection.target)
 
 
 if __name__ == "__main__":  # pragma: no cover

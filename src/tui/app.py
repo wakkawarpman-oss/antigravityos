@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import shlex
-from threading import Thread
+from threading import Event, Thread
 from time import sleep
 
 from pathlib import Path
@@ -130,6 +130,7 @@ class HannaTUIApp(App[None]):
         self.plain = plain
         self._worker: Optional[Thread] = None
         self._mock_worker: Optional[Thread] = None
+        self._shutdown_event = Event()
         self._screens = {
             "overview": OverviewScreen(),
             "pipeline": PipelineScreen(),
@@ -149,6 +150,7 @@ class HannaTUIApp(App[None]):
             yield Static(self._render_command_status(), id="command-status")
 
     def on_mount(self) -> None:
+        self._shutdown_event.clear()
         for name, screen in self._screens.items():
             self.install_screen(screen, name=name)
             screen.update_state(self.session_state)
@@ -156,6 +158,9 @@ class HannaTUIApp(App[None]):
         self._focus_command_input()
         self.notify(STARTUP_NOTIFY_TEXT, title="HANNA")
         self._start_mock_lane_stream()
+
+    def on_unmount(self) -> None:
+        self._shutdown_event.set()
 
     def action_view_overview(self) -> None:
         self._switch_view("overview")
@@ -291,9 +296,19 @@ class HannaTUIApp(App[None]):
 
     def _run_in_background(self, mode: str, config: TUIExecutionConfig) -> None:
         try:
-            run_mode(config, mode, lambda event: self.call_from_thread(self._apply_event, event))
+            run_mode(config, mode, lambda event: self._call_from_thread_safe(self._apply_event, event))
         except Exception as exc:
-            self.call_from_thread(self._handle_background_error, mode, exc)
+            self._call_from_thread_safe(self._handle_background_error, mode, exc)
+
+    def _call_from_thread_safe(self, callback, *args) -> bool:
+        if self._shutdown_event.is_set():
+            return False
+        try:
+            self.call_from_thread(callback, *args)
+            return True
+        except RuntimeError:
+            # Textual raises when App has already stopped.
+            return False
 
     def _handle_background_error(self, mode: str, exc: Exception) -> None:
         self.session_state.running = False
@@ -436,8 +451,11 @@ class HannaTUIApp(App[None]):
     def _run_mock_lane_stream(self) -> None:
         checkpoints = [(5, 0, "running", "wayback archive sweep"), (3, 0, "done", "archive delta complete"), (2, 1, "running", "satellite frame correlation"), (2, 1, "done", "geospatial overlays matched")]
         for delay, module_index, status, detail in checkpoints:
+            if self._shutdown_event.is_set():
+                return
             sleep(delay)
-            self.call_from_thread(self._apply_mock_lane_update, module_index, status, detail)
+            if not self._call_from_thread_safe(self._apply_mock_lane_update, module_index, status, detail):
+                return
 
     def _apply_mock_lane_update(self, module_index: int, status: str, detail: str) -> None:
         if self.session_state.running:

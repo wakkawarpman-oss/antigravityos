@@ -620,32 +620,71 @@ def _cmd_dossier(args: argparse.Namespace) -> None:
         leak_dir=args.leak_dir,
         workers=args.workers,
     )
-    run = engine.run_one_shot(
-        target_input,
-        type_hint=args.type_hint,
-        surface_modules=_split(args.surface_modules) or None,
-        deep_modules=_split(args.deep_modules) or None,
-        pivot_modules=_split(args.pivot_modules) or None,
-        export_formats=_parse_dossier_export_formats(args.export_formats),
-        export_dir=args.export_dir,
-        interactive_export=args.interactive_export,
-    )
+    run_kwargs = {
+        "input_str": target_input,
+        "type_hint": args.type_hint,
+        "surface_modules": _split(args.surface_modules) or None,
+        "deep_modules": _split(args.deep_modules) or None,
+        "pivot_modules": _split(args.pivot_modules) or None,
+        "export_formats": _parse_dossier_export_formats(args.export_formats),
+        "export_dir": args.export_dir,
+        "interactive_export": args.interactive_export,
+    }
 
-    payload = run.to_dict()
+    if hasattr(engine, "run_one_shot_full"):
+        run = _run_with_optional_stdout_capture(
+            lambda: engine.run_one_shot_full(**run_kwargs),
+            _json_only_enabled(args),
+        )
+        payload = run.to_dict()
+        dossier_obj = run.dossier
+        normalized = run.normalized
+        exports = run.exports
+    else:
+        maybe_tuple = _run_with_optional_stdout_capture(
+            lambda: engine.run_one_shot(**run_kwargs),
+            _json_only_enabled(args),
+        )
+        if not (isinstance(maybe_tuple, tuple) and len(maybe_tuple) == 2):
+            raise RuntimeError("dossier engine returned unsupported payload")
+        dossier_obj, normalized = maybe_tuple
+        exports = {}
+        payload = {
+            "schema_version": 1,
+            "target": {
+                "value": dossier_obj.target.value,
+                "type_hint": dossier_obj.target.type_hint,
+            },
+            "layers": list(dossier_obj.layers or []),
+            "extra_notes": list(dossier_obj.extra_notes or []),
+            "normalized": normalized,
+            "evidences": [
+                {
+                    "source": ev.source,
+                    "field": ev.field,
+                    "value": ev.value,
+                    "confidence": ev.confidence,
+                    "score": ev.score,
+                }
+                for ev in dossier_obj.evidences
+            ],
+            "exports": exports,
+        }
+
     if _json_only_enabled(args):
         _emit_json_payload(payload)
         return
 
     print("ONE-SHOT DOSSIER")
-    print(f"Target: {run.dossier.target.value} ({run.dossier.target.type_hint})")
-    print(f"Cycles: {', '.join(run.dossier.layers)}")
-    print(f"Evidence count: {len(run.dossier.evidences)}")
+    print(f"Target: {dossier_obj.target.value} ({dossier_obj.target.type_hint})")
+    print(f"Cycles: {', '.join(dossier_obj.layers or [])}")
+    print(f"Evidence count: {len(dossier_obj.evidences)}")
     print("Normalized:")
-    for key, values in run.normalized.items():
+    for key, values in normalized.items():
         if values:
             print(f"  {key}: {len(values)}")
-    if run.exports:
-        for fmt, path in run.exports.items():
+    if exports:
+        for fmt, path in exports.items():
             print(f"Exported {fmt}: {path}")
 
 
@@ -694,7 +733,8 @@ def _cmd_menu(_args: argparse.Namespace) -> None:
 
     rc = menu_main()
     if rc:
-        raise RuntimeError("fullscreen menu failed")
+        print("fullscreen menu failed", file=sys.stderr)
+        raise SystemExit(int(rc))
 
 
 def main() -> None:
