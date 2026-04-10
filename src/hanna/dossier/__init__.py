@@ -1,7 +1,22 @@
 from dossier import Dossier, DossierEngine, Evidence, Target
-from dossier.cli import run_cli_dossier
-from dossier.cli_shell import run_interactive_shell
-from dossier.cyber_boot import run_cyber_boot
+
+
+def run_cli_dossier(*args, **kwargs):
+    from dossier.cli import run_cli_dossier as _run
+
+    return _run(*args, **kwargs)
+
+
+def run_interactive_shell(*args, **kwargs):
+    from dossier.cli_shell import run_interactive_shell as _run
+
+    return _run(*args, **kwargs)
+
+
+def run_cyber_boot(*args, **kwargs):
+    from dossier.cyber_boot import run_cyber_boot as _run
+
+    return _run(*args, **kwargs)
 
 
 def run_tui_dossier_app() -> None:

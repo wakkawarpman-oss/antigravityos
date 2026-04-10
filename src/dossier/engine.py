@@ -87,7 +87,9 @@ class DossierEngine:
         self.runner_factory = runner_factory
 
     def classify_target(self, value: str) -> str:
-        candidate = value.strip()
+        if value is None:
+            return "unknown"
+        candidate = str(value).strip()
         if not candidate:
             return "unknown"
 

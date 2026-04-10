@@ -3,10 +3,70 @@
 
 from __future__ import annotations
 
+import os
+import platform
 import random
 import shutil
+import subprocess  # nosec B404
 import sys
 import time
+
+
+_RNG = random.SystemRandom()
+
+
+def _run_quiet(cmd: list[str]) -> bool:
+    try:
+        subprocess.run(  # nosec B603
+            cmd,
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def play_cyber_ding(frequency: int = 1000, duration_ms: int = 80) -> None:
+    """Play a short cross-platform boot ding with safe fallbacks."""
+    if os.getenv("HANNA_CYBER_JINGLE", "1") not in {"1", "true", "TRUE", "yes", "on"}:
+        return
+    if not sys.stdout.isatty():
+        return
+
+    system = platform.system().lower()
+    try:
+        if system == "windows":
+            import winsound
+
+            winsound.Beep(int(frequency), int(duration_ms))
+            return
+        if system == "linux" and shutil.which("beep"):
+            if _run_quiet(["beep", "-f", str(int(frequency)), "-l", str(int(duration_ms))]):
+                return
+        if system == "darwin":
+            if shutil.which("afplay") and _run_quiet(["afplay", "/System/Library/Sounds/Glass.aiff"]):
+                return
+            if shutil.which("osascript") and _run_quiet(["osascript", "-e", "beep 1"]):
+                return
+    except Exception:
+        print("\a", end="", flush=True)
+        return
+
+    # Terminal bell fallback for minimal portability.
+    print("\a", end="", flush=True)
+
+
+def play_cyberpunk_melody() -> None:
+    notes = [
+        (1200, 60),
+        (1450, 70),
+        (1700, 90),
+    ]
+    for freq, duration in notes:
+        play_cyber_ding(freq, duration)
+        time.sleep(duration / 1000)
 
 
 class HANNACyberBoot:
@@ -53,15 +113,16 @@ class HANNACyberBoot:
         return f"SEC [{gauge}] {score:3d}/100"
 
     def network_graph(self) -> str:
-        graph = random.choice([
+        graph = _RNG.choice([
             "●──●──●──●──●──●",
             "●──●  ●──●──●  ●",
             " ●──●──●──●──● ",
         ])
-        return f"NET {graph} ({random.randint(6, 12)} nodes)"
+        return f"NET {graph} ({_RNG.randint(6, 12)} nodes)"
 
     def boot_sequence(self) -> None:
         self.clear_screen()
+        play_cyberpunk_melody()
         print(self.COLORS["hanna_logo"], end="")
         for line in self.ASCII_HANNA.splitlines():
             print(line.center(self.width))
@@ -82,8 +143,9 @@ class HANNACyberBoot:
             ("ONE-SHOT-DOSSIER READY", 100),
         ]
 
-        for msg, progress in phases:
-            security_score = random.randint(88, 97)
+        for idx, (msg, progress) in enumerate(phases):
+            play_cyber_ding(900 + idx * 70, 40)
+            security_score = _RNG.randint(88, 97)
             line = (
                 f"{self.COLORS['progress']}"
                 f"{self.progress_bar(progress, 100, msg)} | "
@@ -100,6 +162,7 @@ class HANNACyberBoot:
             "KEY FINDINGS: OUTDATED WEB SERVER | STRICT FIREWALL DETECTED"
             f"{self.COLORS['reset']}"
         )
+        play_cyber_ding(1200, 140)
         print(f"{self.COLORS['ready']}HANNA CYBERPUNK MODE ACTIVATED{self.COLORS['reset']}")
         print()
         time.sleep(0.8)
