@@ -1,0 +1,22 @@
+{
+  "tools": [
+    { "name": "holehe", "active": true, "cat": "identity", "lane": "fast" },
+    { "name": "ghunt", "active": true, "cat": "identity", "lane": "fast" },
+    { "name": "social_analyzer", "active": true, "cat": "identity", "lane": "slow" },
+    { "name": "search4faces", "active": true, "cat": "identity", "lane": "fast" },
+    { "name": "vk_graph", "active": true, "cat": "identity", "lane": "slow" },
+    { "name": "subfinder", "active": true, "cat": "infra", "lane": "fast" },
+    { "name": "amass", "active": true, "cat": "infra", "lane": "slow" },
+    { "name": "httpx_probe", "active": true, "cat": "infra", "lane": "fast" },
+    { "name": "naabu", "active": true, "cat": "infra", "lane": "slow" },
+    { "name": "nmap", "active": true, "cat": "infra", "lane": "slow" },
+    { "name": "nuclei", "active": true, "cat": "infra", "lane": "slow" },
+    { "name": "shodan", "active": true, "cat": "infra", "lane": "fast" },
+    { "name": "censys", "active": true, "cat": "infra", "lane": "fast" },
+    { "name": "katana", "active": true, "cat": "infra", "lane": "slow" },
+    { "name": "firms", "active": true, "cat": "geoint", "lane": "fast" },
+    { "name": "satintel", "active": true, "cat": "geoint", "lane": "slow" },
+    { "name": "opendatabot", "active": true, "cat": "registry", "lane": "fast" },
+    { "name": "web_search", "active": true, "cat": "registry", "lane": "fast" }
+  ]
+}

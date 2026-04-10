@@ -1,0 +1,18 @@
+# docker-compose.prod.yml
+version: '3.8'
+
+services:
+  app:
+    restart: unless-stopped
+    stop_grace_period: 30s
+    stop_signal: SIGTERM
+
+  worker:
+    restart: unless-stopped
+    stop_grace_period: 30s
+    stop_signal: SIGTERM
+
+  db:
+    restart: unless-stopped
+    stop_grace_period: 60s
+    stop_signal: SIGTERM

@@ -1,0 +1,14 @@
+[Unit]
+Description=HANNA Tool Sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/hanna/current
+ExecStart=/opt/hanna/current/scripts/replace_tools.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

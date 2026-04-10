@@ -1,0 +1,30 @@
+[Unit]
+Description=HANNA OSINT Adapter
+Wants=network-online.target docker.service hanna-toolsync.service
+After=network-online.target docker.service hanna-toolsync.service
+Requires=docker.service hanna-toolsync.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+WorkingDirectory=/opt/hanna/current
+EnvironmentFile=-/opt/hanna/.env
+
+ExecStart=/usr/bin/docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.prod.yml \
+  --env-file /opt/hanna/.env \
+  up -d --remove-orphans
+
+ExecStop=/usr/bin/docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.prod.yml \
+  --env-file /opt/hanna/.env \
+  down
+
+TimeoutStopSec=60s
+KillMode=none
+Restart=no
+
+[Install]
+WantedBy=multi-user.target
