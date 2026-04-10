@@ -90,7 +90,7 @@ class ChainRunner:
             engine.ingest_confirmed_evidence(cf)
 
         # ── Stage 2: Entity resolution ──
-        clusters = engine.resolve_entities()
+        clusters = engine.resolve_entities() or []
         log.info("Entity resolution: %d cluster(s)", len(clusters))
 
         # ── Stage 3: Deep recon ──
@@ -111,7 +111,7 @@ class ChainRunner:
                 known_usernames_override=known_usernames,
             )
             if recon_result and recon_result.get("new_observables", 0) > 0:
-                clusters = engine.resolve_entities()
+                clusters = engine.resolve_entities() or []
 
             errors = recon_result.get("errors", []) if recon_result else []
             all_hits = list(recon_report.hits) if recon_report else []

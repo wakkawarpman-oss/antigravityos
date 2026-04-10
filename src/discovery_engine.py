@@ -204,6 +204,7 @@ class DiscoveryEngine:
 
     def __init__(self, db_path: str = ":memory:"):
         self.repo = DiscoveryRepository(db_path)
+        self.db = self.repo
         self.clusters: list[IdentityCluster] = []
         self._all_observables: list[Observable] = []
         self._obs_by_value: dict[str, Observable] = {}  # fingerprint -> Observable (dedup + corroboration)
@@ -612,6 +613,7 @@ class DiscoveryEngine:
         from pipelines.resolution import EntityResolutionPipeline
         pipeline = EntityResolutionPipeline(self.repo, self._all_observables, self._platform_from_url)
         self.clusters = pipeline.resolve_entities()
+        return self.clusters
 
     def verify_content(self, max_checks: int = 100, timeout: float = 8.0, proxy: Optional[str] = None) -> Dict[str, int]:
         return self.verifier.verify_content(max_checks, timeout, proxy)

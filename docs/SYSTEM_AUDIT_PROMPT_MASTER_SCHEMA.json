@@ -1,0 +1,211 @@
+{
+  "version": "1.0",
+  "name": "hanna_system_audit_master",
+  "purpose": "Deterministic end-to-end audit prompt with strict machine-readable output schema",
+  "instructions": {
+    "role": "Senior Systems Auditor, QA Lead, Release Architect",
+    "project": "hanna-v3-2-clean",
+    "principles": [
+      "Do not invent facts",
+      "Mark unknowns explicitly",
+      "No duplicated sections",
+      "Every finding must map to evidence",
+      "Use strict phase order"
+    ],
+    "phase_order": [
+      "system_boundaries",
+      "functional_validation",
+      "security_and_opsec",
+      "stability_and_artifacts",
+      "documentation_and_procedure",
+      "release_gate_contract",
+      "release_decision_and_rollback"
+    ],
+    "phase_requirements": {
+      "system_boundaries": [
+        "list included tools/modules",
+        "list excluded or replaced tools",
+        "list active profiles/presets",
+        "list active contexts"
+      ],
+      "functional_validation": [
+        "validate target types: email, phone, username, domain, ip",
+        "validate module dispatch by target and profile",
+        "validate lifecycle stages: preflight, discovery, dispatch, export, reconciliation",
+        "validate generated outputs"
+      ],
+      "security_and_opsec": [
+        "validate tor policy behavior",
+        "validate rotation events/checkpoints",
+        "validate proxy policy paths",
+        "validate redaction safety"
+      ],
+      "stability_and_artifacts": [
+        "validate final-summary.json",
+        "validate gate-result.json",
+        "validate pytest.err and full-rehearsal.err",
+        "validate analyzer modes: normal, --rc, --dry-run"
+      ],
+      "documentation_and_procedure": [
+        "validate runbook and snapshot consistency",
+        "validate canonical env/commands",
+        "validate no deprecated analyzer references"
+      ],
+      "release_gate_contract": [
+        "evaluate green/red/warning contract",
+        "report exact reasons and evidence paths"
+      ],
+      "release_decision_and_rollback": [
+        "state decision and rationale",
+        "list blockers if not green",
+        "state rollback triggers and references"
+      ]
+    }
+  },
+  "contracts": {
+    "green": {
+      "overall_status": "pass",
+      "gate_valid": true,
+      "required_check_failures": [],
+      "tor_policy_status": "pass_when_applicable",
+      "analyzer_rc_exit_code": 0
+    },
+    "red": {
+      "condition": "any green condition violated"
+    },
+    "warning": {
+      "condition": "green conditions pass with non-required failures present"
+    }
+  },
+  "output_schema": {
+    "type": "object",
+    "required": [
+      "scope_and_inputs",
+      "confirmed_facts",
+      "unknowns",
+      "findings_by_phase",
+      "release_gate_evaluation",
+      "final_verdict",
+      "blockers_and_next_actions",
+      "rollback_readiness"
+    ],
+    "properties": {
+      "scope_and_inputs": {
+        "type": "object",
+        "required": ["repo", "artifacts", "commands", "commit"],
+        "properties": {
+          "repo": {"type": "string"},
+          "artifacts": {"type": "array", "items": {"type": "string"}},
+          "commands": {"type": "array", "items": {"type": "string"}},
+          "commit": {"type": "string"}
+        }
+      },
+      "confirmed_facts": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["fact", "evidence"],
+          "properties": {
+            "fact": {"type": "string"},
+            "evidence": {"type": "string"}
+          }
+        }
+      },
+      "unknowns": {
+        "type": "array",
+        "items": {"type": "string"}
+      },
+      "findings_by_phase": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["phase", "status", "findings"],
+          "properties": {
+            "phase": {
+              "type": "string",
+              "enum": [
+                "system_boundaries",
+                "functional_validation",
+                "security_and_opsec",
+                "stability_and_artifacts",
+                "documentation_and_procedure",
+                "release_gate_contract",
+                "release_decision_and_rollback"
+              ]
+            },
+            "status": {"type": "string", "enum": ["pass", "warn", "fail", "unknown"]},
+            "findings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["finding", "severity", "risk", "evidence", "recommendation"],
+                "properties": {
+                  "finding": {"type": "string"},
+                  "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+                  "risk": {"type": "string"},
+                  "evidence": {"type": "string"},
+                  "recommendation": {"type": "string"}
+                }
+              }
+            }
+          }
+        }
+      },
+      "release_gate_evaluation": {
+        "type": "object",
+        "required": ["green_conditions", "red_conditions", "warning_conditions", "result"],
+        "properties": {
+          "green_conditions": {"type": "array", "items": {"type": "string"}},
+          "red_conditions": {"type": "array", "items": {"type": "string"}},
+          "warning_conditions": {"type": "array", "items": {"type": "string"}},
+          "result": {"type": "string", "enum": ["GREEN", "RED", "WARNING"]}
+        }
+      },
+      "final_verdict": {
+        "type": "object",
+        "required": ["verdict", "rationale", "evidence_paths"],
+        "properties": {
+          "verdict": {"type": "string", "enum": ["GREEN", "RED", "WARNING"]},
+          "rationale": {"type": "string"},
+          "evidence_paths": {"type": "array", "items": {"type": "string"}}
+        }
+      },
+      "blockers_and_next_actions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["blocker", "owner", "next_action"],
+          "properties": {
+            "blocker": {"type": "string"},
+            "owner": {"type": "string"},
+            "next_action": {"type": "string"}
+          }
+        }
+      },
+      "rollback_readiness": {
+        "type": "object",
+        "required": ["triggers", "procedure_refs", "status"],
+        "properties": {
+          "triggers": {"type": "array", "items": {"type": "string"}},
+          "procedure_refs": {"type": "array", "items": {"type": "string"}},
+          "status": {"type": "string", "enum": ["ready", "not_ready", "unknown"]}
+        }
+      }
+    }
+  },
+  "usage_template": {
+    "system_prompt_appendix": "Use the instructions.phase_order exactly and return only valid JSON matching output_schema.",
+    "artifact_inputs": [
+      "final-summary.json",
+      "gate-result.json",
+      "pytest.err",
+      "full-rehearsal.err",
+      "live-smoke.err"
+    ],
+    "exit_code_policy": {
+      "GREEN": 0,
+      "WARNING": 0,
+      "RED": 1
+    }
+  }
+}

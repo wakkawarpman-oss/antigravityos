@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any, Union, Optional, List, Dict, Tuple
 from models.observables import Observable, IdentityCluster, TIER_CONFIRMED, TIER_PROBABLE, TIER_UNVERIFIED
+from config import SCHEMA_VERSION
 
 log = logging.getLogger("hanna.repository")
 
@@ -16,9 +17,16 @@ class DiscoveryRepository:
         self.db.row_factory = sqlite3.Row
         self._init_schema()
 
+    def execute(self, *args, **kwargs):
+        return self.db.execute(*args, **kwargs)
+
+    def __getattr__(self, item: str):
+        return getattr(self.db, item)
+
     def _init_schema(self):
         self.db.execute("PRAGMA journal_mode = WAL")
         self.db.execute("PRAGMA busy_timeout = 5000")
+        self.db.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")
         self.db.executescript("""
             CREATE TABLE IF NOT EXISTS observables (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -8,6 +8,7 @@ from shutil import which
 from typing import Optional, Union, List, Dict, Set, Tuple
 
 from adapters.cli_common import COMMON_BIN_DIRS
+from config import TOR_CONTROL_ENABLED, TOR_CONTROL_PORT, TOR_ENABLED, TOR_PROXY_URL, TOR_REQUIRE_SOCKS5H
 from registry import resolve_modules
 
 
@@ -47,6 +48,8 @@ MODULE_CHECKS: Dict[str, Set[str]] = {
     "firms": {"firms_map_key"},
 }
 
+ALWAYS_CHECKS: Set[str] = {"tor_policy"}
+
 
 def _build_path() -> str:
     parts = [p for p in os.environ.get("PATH", "").split(":") if p]
@@ -73,11 +76,26 @@ def _filter_checks(checks: List[PreflightCheck], modules: Optional[List[str]]) -
     wanted: set[str] = set()
     for module_name in resolved:
         wanted.update(MODULE_CHECKS.get(module_name, {module_name}))
+    wanted.update(ALWAYS_CHECKS)
     return [check for check in checks if check.name in wanted]
+
+
+def _tor_policy_check() -> PreflightCheck:
+    if not TOR_ENABLED:
+        return PreflightCheck(name="tor_policy", status="ok", detail="disabled")
+    if not TOR_PROXY_URL:
+        return PreflightCheck(name="tor_policy", status="fail", detail="HANNA_TOR_ENABLED=1 but HANNA_TOR_PROXY_URL is empty")
+    if TOR_REQUIRE_SOCKS5H and not TOR_PROXY_URL.startswith("socks5h://"):
+        return PreflightCheck(name="tor_policy", status="fail", detail="HANNA_TOR_PROXY_URL must use socks5h:// when HANNA_TOR_REQUIRE_SOCKS5H=1")
+    if TOR_CONTROL_ENABLED and TOR_CONTROL_PORT <= 0:
+        return PreflightCheck(name="tor_policy", status="fail", detail="HANNA_TOR_CONTROL_PORT must be > 0 when HANNA_TOR_CONTROL_ENABLED=1")
+    mode = "enabled+control" if TOR_CONTROL_ENABLED else "enabled"
+    return PreflightCheck(name="tor_policy", status="ok", detail=f"{mode}:{TOR_PROXY_URL}")
 
 
 def run_preflight(modules: Optional[List[str]] = None) -> List[PreflightCheck]:
     checks: list[PreflightCheck] = []
+    checks.append(_tor_policy_check())
     tool_specs = [
         ("nuclei", "NUCLEI_BIN", "nuclei"),
         ("katana", "KATANA_BIN", "katana"),

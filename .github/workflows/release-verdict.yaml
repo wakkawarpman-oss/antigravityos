@@ -1,0 +1,52 @@
+name: Release Verdict
+
+on:
+  workflow_call:
+    inputs:
+      prelaunch_bundle_dir:
+        description: Path to prelaunch bundle (final-summary.json, gate-result.json, logs)
+        required: true
+        type: string
+    outputs:
+      verdict:
+        description: GREEN or RED
+        value: ${{ jobs.verdict.outputs.verdict }}
+
+jobs:
+  verdict:
+    runs-on: ubuntu-latest
+    outputs:
+      verdict: ${{ steps.out.outputs.verdict }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps (pytest for env checks)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
+      - name: Analyze final-summary + gate / logs
+        id: analyze
+        run: |
+          python scripts/analyze_release_verdict_with_logs.py \
+            "${{ inputs.prelaunch_bundle_dir }}/final-summary.json" \
+            "${{ inputs.prelaunch_bundle_dir }}/gate-result.json" \
+            "${{ inputs.prelaunch_bundle_dir }}/pytest.err" \
+            "${{ inputs.prelaunch_bundle_dir }}/full-rehearsal.err" \
+            --tor-policy
+
+      - name: Set output verdict
+        id: out
+        if: always()
+        run: |
+          if [ "${{ steps.analyze.outcome }}" = "success" ]; then
+            echo "verdict=GREEN" >> "$GITHUB_OUTPUT"
+          else
+            echo "verdict=RED" >> "$GITHUB_OUTPUT"
+          fi

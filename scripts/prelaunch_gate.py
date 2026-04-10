@@ -14,6 +14,7 @@ KNOWN_CHECKS = (
     "smart_summary",
     "focused_regression",
     "live_smoke",
+    "tor_policy",
     "full_rollout_rehearsal",
 )
 

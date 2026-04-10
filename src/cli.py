@@ -63,7 +63,10 @@ def _command_overview() -> str:
                     chain (ch)       Full pipeline: ingest -> resolve -> recon -> verify -> render
                     aggregate (agg)  Parallel one-shot across selected adapters
                     manual (man)     Run one adapter directly
+                    dossier (dos)    One-shot dossier engine (surface/deep/pivot)
                     tui (ui)         Launch operator cockpit
+                    shell (sh)       Interactive operator shell/menu
+                    menu (fm)        Full-screen menu (prompt_toolkit)
                     list (ls)        Show adapters and presets
                     preflight (pf)   Check binaries, env vars, and runtime prerequisites
                     reset (rs)       Remove generated runtime state
@@ -73,7 +76,10 @@ def _command_overview() -> str:
                     hanna chain --target "Example Target" --modules full-spectrum
                     hanna aggregate --target example.com --modules pd-infra-quick
                     hanna manual --module ua_phone --target "Phone Pivot" --phones "+380507133698"
+                    hanna dossier "user@example.com" --export-formats text,json,html
                     hanna ui --plain
+                    hanna shell
+                    hanna menu
                     hanna preflight --modules full-spectrum --strict
                     hanna reset --confirm
                 """
@@ -88,6 +94,17 @@ def _parse_export_formats(value: Optional[str]) -> List[str]:
     invalid = [item for item in formats if item not in allowed]
     if invalid:
         raise ValueError(f"Unsupported export format(s): {', '.join(invalid)}")
+    return list(dict.fromkeys(formats))
+
+
+def _parse_dossier_export_formats(value: Optional[str]) -> List[str]:
+    if not value:
+        return []
+    allowed = {"text", "json", "stix", "zip", "html"}
+    formats = [item.strip().lower() for item in value.split(",") if item.strip()]
+    invalid = [item for item in formats if item not in allowed]
+    if invalid:
+        raise ValueError(f"Unsupported dossier export format(s): {', '.join(invalid)}")
     return list(dict.fromkeys(formats))
 
 
@@ -323,6 +340,22 @@ def _build_parser() -> argparse.ArgumentParser:
     mn.add_argument("--metadata-file", default=None, help="Explicit output path for full metadata JSON export")
     _add_runtime_output_flags(mn, runtime_json_default=False)
 
+    ds = sub.add_parser("dossier", aliases=["dos"], help="Run ONE-SHOT dossier engine with 3 cycles")
+    ds.add_argument("input", nargs="+", help="Single operator input: email/phone/username/domain/ip/hash")
+    ds.add_argument("--type-hint", choices=["email", "phone", "username", "domain", "ip", "hash", "url", "unknown"], default=None)
+    ds.add_argument("--surface-modules", default=None, help="Override surface cycle modules or presets")
+    ds.add_argument("--deep-modules", default=None, help="Override deep cycle modules or presets")
+    ds.add_argument("--pivot-modules", default=None, help="Override pivot cycle modules or presets")
+    ds.add_argument("--workers", type=int, default=4)
+    ds.add_argument("--proxy", default=None)
+    ds.add_argument("--tor", action="store_true", help="Route through Tor (socks5h://127.0.0.1:9050)")
+    ds.add_argument("--leak-dir", default=None)
+    ds.add_argument("--export-formats", default="text,json", help="Comma-separated export formats: text,json,stix,zip,html")
+    ds.add_argument("--export-dir", default=None, help="Directory for dossier exports")
+    ds.add_argument("--interactive-export", action="store_true", help="Prompt for export format selection")
+    ds.add_argument("--json-summary-only", action="store_true", help="Print only machine-readable dossier JSON payload")
+    ds.add_argument("--json-only", action="store_true", help="Alias for --json-summary-only")
+
     tui = sub.add_parser("tui", aliases=["ui"], help="Launch the HANNA operator cockpit scaffold")
     tui.add_argument("--target", default=None, help="Optional target label to preload into the cockpit")
     tui.add_argument("--modules", default=None, help="Comma-separated modules or preset name for cockpit context")
@@ -345,6 +378,11 @@ def _build_parser() -> argparse.ArgumentParser:
     tui.add_argument("--export-dir", default=None, help="Directory for machine-readable exports")
     tui.add_argument("--report-mode", choices=["internal", "shareable", "strict"], default="shareable")
     tui.add_argument("--plain", action="store_true", help="Use the safest TUI launch mode for VS Code and other low-capability terminals")
+
+    shl = sub.add_parser("shell", aliases=["sh"], help="Launch interactive shell/menu wrapper for common HANNA flows")
+    shl.add_argument("--prompt-only", action="store_true", help="Start directly in command prompt mode")
+
+    sub.add_parser("menu", aliases=["fm"], help="Launch full-screen prompt_toolkit menu")
 
     # ── list ─────────────────────────────────────────────────────
     ls = sub.add_parser("list", aliases=["ls"], help="List available adapters and presets")
@@ -570,6 +608,47 @@ def _cmd_summarize(args: argparse.Namespace) -> None:
     print(summarize_payload(args.target, raw_text))
 
 
+def _cmd_dossier(args: argparse.Namespace) -> None:
+    from dossier import DossierEngine
+
+    target_input = " ".join(args.input).strip()
+    if not target_input:
+        raise RuntimeError("dossier requires a non-empty input target")
+
+    engine = DossierEngine(
+        proxy=_resolve_proxy(args),
+        leak_dir=args.leak_dir,
+        workers=args.workers,
+    )
+    run = engine.run_one_shot(
+        target_input,
+        type_hint=args.type_hint,
+        surface_modules=_split(args.surface_modules) or None,
+        deep_modules=_split(args.deep_modules) or None,
+        pivot_modules=_split(args.pivot_modules) or None,
+        export_formats=_parse_dossier_export_formats(args.export_formats),
+        export_dir=args.export_dir,
+        interactive_export=args.interactive_export,
+    )
+
+    payload = run.to_dict()
+    if _json_only_enabled(args):
+        _emit_json_payload(payload)
+        return
+
+    print("ONE-SHOT DOSSIER")
+    print(f"Target: {run.dossier.target.value} ({run.dossier.target.type_hint})")
+    print(f"Cycles: {', '.join(run.dossier.layers)}")
+    print(f"Evidence count: {len(run.dossier.evidences)}")
+    print("Normalized:")
+    for key, values in run.normalized.items():
+        if values:
+            print(f"  {key}: {len(values)}")
+    if run.exports:
+        for fmt, path in run.exports.items():
+            print(f"Exported {fmt}: {path}")
+
+
 def _cmd_tui(args: argparse.Namespace) -> None:
     try:
         from tui import HannaTUIApp, build_default_session_state
@@ -601,6 +680,23 @@ def _cmd_tui(args: argparse.Namespace) -> None:
     app.run()
 
 
+def _cmd_shell(args: argparse.Namespace) -> None:
+    from tui.interactive_shell import main as shell_main
+    if args.prompt_only:
+        from tui.interactive_shell import _prompt_loop
+        _prompt_loop()
+        return
+    shell_main()
+
+
+def _cmd_menu(_args: argparse.Namespace) -> None:
+    from tui.fullscreen_menu import main as menu_main
+
+    rc = menu_main()
+    if rc:
+        raise RuntimeError("fullscreen menu failed")
+
+
 def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
@@ -614,7 +710,10 @@ def main() -> None:
         "chain": _cmd_chain,
         "aggregate": _cmd_aggregate,
         "manual": _cmd_manual,
+        "dossier": _cmd_dossier,
         "tui": _cmd_tui,
+        "shell": _cmd_shell,
+        "menu": _cmd_menu,
         "list": _cmd_list,
         "preflight": _cmd_preflight,
         "reset": _cmd_reset,
@@ -625,7 +724,10 @@ def main() -> None:
         "ch": "chain",
         "agg": "aggregate",
         "man": "manual",
+        "dos": "dossier",
         "ui": "tui",
+        "sh": "shell",
+        "fm": "menu",
         "ls": "list",
         "pf": "preflight",
         "rs": "reset",

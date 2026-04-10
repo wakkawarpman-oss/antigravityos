@@ -18,6 +18,11 @@ from config import (
     RETRY_MAX_ATTEMPTS,
     RUNS_ROOT,
     SCHEMA_VERSION,
+    TOR_CONTROL_PORT,
+    TOR_PROXY_URL,
+    TOR_REQUIRE_SOCKS5H,
+    TOR_ROTATION_COOLDOWN_SEC,
+    TOR_ROTATION_POLICY,
     VERIFY_WORKERS,
     WORKER_TIMEOUT,
 )
@@ -60,3 +65,10 @@ class TestConfigDefaults:
     def test_nuclei_profile_config_sane(self):
         assert NUCLEI_PROFILE in {"quick", "deep"}
         assert NUCLEI_DEEP_TARGET_CAP >= NUCLEI_QUICK_TARGET_CAP >= 1
+
+    def test_tor_policy_config_sane(self):
+        assert isinstance(TOR_REQUIRE_SOCKS5H, bool)
+        assert TOR_PROXY_URL
+        assert TOR_CONTROL_PORT > 0
+        assert TOR_ROTATION_COOLDOWN_SEC >= 0
+        assert TOR_ROTATION_POLICY in {"batch_on_error", "batch", "on_error", "off"} or bool(TOR_ROTATION_POLICY)

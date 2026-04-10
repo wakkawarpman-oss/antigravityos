@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  tor-proxy:
+    image: dockurr/tor
+    container_name: tor-proxy
+    restart: unless-stopped
+    stop_grace_period: 30s
+    stop_signal: SIGTERM
+    volumes:
+      - ./config/tor/torrc:/etc/tor/torrc:ro
+      - ./data/tor:/var/lib/tor
+      - ./data/tor-logs:/var/log/tor
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+    user: "999:999"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 0.5
+    networks:
+      - osint-net
+    # Expose SOCKS only if operator tooling requires host access.
+    ports:
+      - "9050:9050"
+
+networks:
+  osint-net:
+    driver: bridge

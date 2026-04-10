@@ -45,6 +45,7 @@ def _sample_summary(*, overall_status: str = "pass", failure_count: int = 0) -> 
             "smart_summary": {"status": "pass"},
             "focused_regression": {"status": "pass"},
             "live_smoke": {"enabled": False, "status": "not-run"},
+            "tor_policy": {"enabled": False, "status": "not-run"},
             "full_rollout_rehearsal": {"enabled": False, "status": "not-run"},
         },
     }
@@ -89,6 +90,16 @@ def test_evaluate_required_checks_accepts_rehearsal_pass():
     payload["checks"]["full_rollout_rehearsal"] = {"enabled": True, "status": "pass"}
 
     failures = module.evaluate_required_checks(payload, ["full_rollout_rehearsal"])
+
+    assert failures == []
+
+
+def test_evaluate_required_checks_accepts_tor_policy_pass():
+    module = _load_module(Path(__file__).resolve().parents[1] / "scripts" / "prelaunch_gate.py", "prelaunch_gate_tor_policy_pass")
+    payload = _sample_summary()
+    payload["checks"]["tor_policy"] = {"enabled": True, "status": "pass"}
+
+    failures = module.evaluate_required_checks(payload, ["tor_policy"])
 
     assert failures == []
 

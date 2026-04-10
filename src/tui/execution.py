@@ -7,7 +7,13 @@ from pathlib import Path
 from typing import Callable, Union, Optional, List, Dict, Tuple
 
 from adapters.base import ReconHit, ReconReport
-from config import DEFAULT_DB_PATH, RUNS_ROOT
+from config import (
+    DEFAULT_DB_PATH,
+    RUNS_ROOT,
+    TOR_ENABLED,
+    TOR_PROXY_URL,
+    TOR_REQUIRE_SOCKS5H,
+)
 from discovery_engine import DiscoveryEngine
 from exporters import export_run_result_json, export_run_result_stix, export_run_result_zip
 from models import AdapterOutcome, RunResult
@@ -42,7 +48,17 @@ class TUIExecutionConfig:
 EventSink = Callable[[dict], None]
 
 
+def _apply_tor_proxy_policy(config: TUIExecutionConfig) -> None:
+    if not TOR_ENABLED:
+        return
+    if not config.proxy:
+        config.proxy = TOR_PROXY_URL
+    if TOR_REQUIRE_SOCKS5H and config.proxy and not config.proxy.startswith("socks5h://"):
+        raise RuntimeError("TOR policy requires socks5h:// proxy URL in TUI execution config")
+
+
 def run_mode(config: TUIExecutionConfig, mode: str, event_sink: EventSink) -> RunResult:
+    _apply_tor_proxy_policy(config)
     _emit(event_sink, "run_started", mode=mode, target=config.target)
     modules = _resolve_mode_modules(config, mode)
     _emit(event_sink, "modules_resolved", mode=mode, modules=modules)
@@ -362,6 +378,36 @@ def _emit_scheduler_event(event_sink: EventSink, payload: dict) -> None:
         _emit(event_sink, "phase", phase=f"lane:{payload.get('lane')}", detail=f"{payload.get('task_count', 0)} task(s) dispatched")
     elif event_type == "lane_complete":
         _emit(event_sink, "activity", level="info", text=f"{payload.get('lane', 'lane')} complete: {payload.get('ok_count', 0)}/{payload.get('task_count', 0)} clean")
+    elif event_type == "tor_rotation_policy":
+        _emit(
+            event_sink,
+            "activity",
+            level="info",
+            text=(
+                f"TOR rotation policy active: {payload.get('policy', 'unknown')} "
+                f"(cooldown={payload.get('cooldown_sec', 0)}s)"
+            ),
+        )
+    elif event_type == "tor_rotation_requested":
+        _emit(
+            event_sink,
+            "activity",
+            level="warn",
+            text=(
+                f"TOR rotation requested after {payload.get('reason', 'event')} "
+                f"on {payload.get('module', 'unknown')}"
+            ),
+        )
+    elif event_type == "tor_rotation_checkpoint":
+        _emit(
+            event_sink,
+            "activity",
+            level="info",
+            text=(
+                f"TOR rotation checkpoint: {payload.get('reason', 'dispatch_complete')} "
+                f"(policy={payload.get('policy', 'unknown')})"
+            ),
+        )
 
 
 def _export_artifacts(result: RunResult, config: TUIExecutionConfig) -> dict[str, str]:

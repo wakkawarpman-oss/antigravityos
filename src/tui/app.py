@@ -7,6 +7,7 @@ from time import sleep
 from pathlib import Path
 from typing import Optional, Union, Dict
 
+from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import Button, Input, Static

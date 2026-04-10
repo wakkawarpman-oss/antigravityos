@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from config import DEFAULT_DB_PATH, RUNS_ROOT
+from config import DEFAULT_DB_PATH, RUNS_ROOT, TOR_ENABLED, TOR_PROXY_URL, TOR_REQUIRE_SOCKS5H
 from discovery_engine import DiscoveryEngine
 from registry import MODULE_PRESETS, MODULES, MODULE_LANE
 
@@ -32,6 +32,23 @@ LEGACY_WARNING = (
     "[legacy] run_discovery.py is kept for compatibility. "
     "Prefer './scripts/hanna' or 'python3 src/cli.py' for operator workflows."
 )
+
+
+def _resolve_effective_proxy(cli_proxy: str | None) -> str | None:
+    if cli_proxy and cli_proxy.strip():
+        return cli_proxy.strip()
+    if TOR_ENABLED:
+        return TOR_PROXY_URL
+    return None
+
+
+def _validate_proxy_policy(proxy: str | None) -> None:
+    if not TOR_ENABLED:
+        return
+    if not proxy:
+        raise SystemExit("TOR policy enabled but no proxy is configured. Set --proxy or HANNA_TOR_PROXY_URL.")
+    if TOR_REQUIRE_SOCKS5H and not proxy.startswith("socks5h://"):
+        raise SystemExit("TOR policy requires socks5h:// proxy URL. Update --proxy or HANNA_TOR_PROXY_URL.")
 
 
 def _parse_targets_file(path: str) -> list[dict[str, list[str] | str]]:
@@ -98,6 +115,9 @@ def main():
     parser.add_argument("--no-legacy-warning", action="store_true", help="Suppress compatibility warning for scripted legacy usage")
 
     args = parser.parse_args()
+
+    args.proxy = _resolve_effective_proxy(args.proxy)
+    _validate_proxy_policy(args.proxy)
 
     logging.basicConfig(
         level=logging.INFO,

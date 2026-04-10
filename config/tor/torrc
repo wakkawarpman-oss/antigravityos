@@ -1,0 +1,24 @@
+## HANNA Tor client profile for OSINT scraping
+## Client-only mode: no relay/exit behavior.
+
+## SOCKS endpoint for internal workers.
+SocksPort 9050 IsolateDestAddr IsolateSOCKSAuth
+
+## Control channel for circuit rotation (internal network only).
+ControlPort 9051
+CookieAuthentication 1
+
+## Explicitly disable HTTP tunnel listener for this profile.
+HTTPTunnelPort 0
+
+## Hardening and runtime behavior.
+DisableDebuggerAttachment 1
+UseEntryGuards 1
+NumEntryGuards 3
+MaxClientCircuitsPending 1000
+CircuitBuildTimeout 60
+ConnLimit 1000
+
+## Logs are kept in mounted isolated runtime path.
+Log notice file /var/log/tor/notices.log
+Log warn file /var/log/tor/warns.log

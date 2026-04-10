@@ -36,3 +36,7 @@ test/debug-*.json
 exports/*.json
 exports/*.stix.json
 exports/*.zip
+
+# Tor runtime artifacts
+data/tor/
+data/tor-logs/

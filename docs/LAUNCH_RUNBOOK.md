@@ -40,6 +40,14 @@ This creates a review bundle under `.cache/prelaunch/<timestamp>/` containing:
 - focused regression output
 - final machine-readable verdict in `final-summary.json`
 
+Canonical output directory variable for prelaunch bundles:
+
+```bash
+HANNA_PRELAUNCH_OUTPUT_DIR=/path/to/.cache/prelaunch/release-rc
+```
+
+`HANNA_PRELAUNCH_OUT_DIR` may still appear in legacy examples, but `HANNA_PRELAUNCH_OUTPUT_DIR` is the primary variable for release procedures.
+
 For CI or external automation, read only `final-summary.json` through the gate helper:
 
 ```bash
@@ -60,6 +68,62 @@ If you prefer `make` in CI:
 make prelaunch-gate \
 	SUMMARY=.cache/prelaunch/<timestamp>/final-summary.json \
 	ARGS='--require-check full_rollout_rehearsal'
+```
+
+### Canonical Verdict Commands
+
+Use one bundle path and run one of these three command variants.
+
+Normal (human-readable output):
+
+```bash
+python3 scripts/analyze_release_verdict_with_logs.py \
+	.cache/prelaunch/<timestamp>/final-summary.json \
+	.cache/prelaunch/<timestamp>/gate-result.json \
+	.cache/prelaunch/<timestamp>/pytest.err \
+	.cache/prelaunch/<timestamp>/full-rehearsal.err \
+	--tor-policy
+```
+
+CI mode (`--rc`, exit code only):
+
+```bash
+python3 scripts/analyze_release_verdict_with_logs.py \
+	.cache/prelaunch/<timestamp>/final-summary.json \
+	.cache/prelaunch/<timestamp>/gate-result.json \
+	.cache/prelaunch/<timestamp>/pytest.err \
+	.cache/prelaunch/<timestamp>/full-rehearsal.err \
+	--tor-policy --rc
+```
+
+Diagnostics mode (`--dry-run`, never fails process):
+
+```bash
+python3 scripts/analyze_release_verdict_with_logs.py \
+	.cache/prelaunch/<timestamp>/final-summary.json \
+	.cache/prelaunch/<timestamp>/gate-result.json \
+	.cache/prelaunch/<timestamp>/pytest.err \
+	.cache/prelaunch/<timestamp>/full-rehearsal.err \
+	--tor-policy --dry-run
+```
+
+### Release Decision Criteria
+
+Treat a run as release-ready only when all of the following are true:
+
+1. `overall_status = pass` in `final-summary.json`.
+2. `gate.valid = true` in `gate-result.json`.
+3. `required_check_failures = []` in `gate-result.json`.
+4. `tor_policy.status = pass` when Tor policy is enabled for the profile.
+5. Analyzer returns `exit_code = 0` in CI mode:
+
+```bash
+python3 scripts/analyze_release_verdict_with_logs.py \
+	.cache/prelaunch/<timestamp>/final-summary.json \
+	.cache/prelaunch/<timestamp>/gate-result.json \
+	.cache/prelaunch/<timestamp>/pytest.err \
+	.cache/prelaunch/<timestamp>/full-rehearsal.err \
+	--tor-policy --rc
 ```
 
 ## 3. Optional Live Smoke

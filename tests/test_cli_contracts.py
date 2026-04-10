@@ -114,11 +114,59 @@ def test_cli_parser_accepts_short_aliases():
     assert parser.parse_args(["ls"]).mode == "ls"
     assert parser.parse_args(["pf"]).mode == "pf"
     assert parser.parse_args(["ui", "--plain"]).mode == "ui"
+    assert parser.parse_args(["fm"]).mode == "fm"
     assert parser.parse_args(["agg", "--target", "case"]).mode == "agg"
     assert parser.parse_args(["ch", "--target", "case"]).mode == "ch"
     assert parser.parse_args(["man", "--module", "nuclei", "--target", "https://example.com"]).mode == "man"
+    assert parser.parse_args(["dos", "user@example.com"]).mode == "dos"
+    assert parser.parse_args(["sh"]).mode == "sh"
     assert parser.parse_args(["sum", "--target", "Case", "--text", "x"]).mode == "sum"
     assert parser.parse_args(["rs", "--confirm"]).mode == "rs"
+
+
+def test_cli_parser_accepts_dossier_subcommand():
+    parser = cli_mod._build_parser()
+    args = parser.parse_args([
+        "dossier",
+        "user@example.com",
+        "--type-hint", "email",
+        "--surface-modules", "email-chain,fast-lane",
+        "--deep-modules", "person-deep",
+        "--pivot-modules", "recon-auto-quick",
+        "--workers", "3",
+        "--export-formats", "text,json,html",
+        "--json-only",
+    ])
+
+    assert args.mode == "dossier"
+    assert args.input == ["user@example.com"]
+    assert args.type_hint == "email"
+    assert args.surface_modules == "email-chain,fast-lane"
+    assert args.deep_modules == "person-deep"
+    assert args.pivot_modules == "recon-auto-quick"
+    assert args.workers == 3
+    assert args.export_formats == "text,json,html"
+    assert args.json_only is True
+
+
+def test_parse_dossier_export_formats_rejects_invalid_value():
+    with pytest.raises(ValueError):
+        cli_mod._parse_dossier_export_formats("json,pdf")
+
+
+def test_cli_parser_accepts_shell_subcommand():
+    parser = cli_mod._build_parser()
+    args = parser.parse_args(["shell", "--prompt-only"])
+
+    assert args.mode == "shell"
+    assert args.prompt_only is True
+
+
+def test_cli_parser_accepts_menu_subcommand():
+    parser = cli_mod._build_parser()
+    args = parser.parse_args(["menu"])
+
+    assert args.mode == "menu"
 
 
 def test_cli_main_dispatches_short_alias(monkeypatch, capsys):

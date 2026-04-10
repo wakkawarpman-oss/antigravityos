@@ -221,7 +221,7 @@ class ReportRenderer:
         """Render a person-centric intelligence dossier as HTML."""
         if redaction_mode not in self.redaction_modes:
             raise ValueError(f"Unsupported redaction_mode: {redaction_mode}")
-        stats = self.engine.repo.get_stats()
+        stats = self.engine.get_stats()
         pivot_queue = self.engine.get_pivot_queue()
         primary = self.engine.clusters[0] if self.engine.clusters else None
         esc = html_mod.escape
@@ -382,8 +382,8 @@ class ReportRenderer:
                 fp_a = f"{edge[0]}:{edge[1]}"
                 fp_b = f"{edge[2]}:{edge[3]}"
                 if fp_a in primary_fps and fp_b in primary_fps:
-                    reason = str(edge[4]).replace("_", " ")
-                    graph_edges_html += f"<tr><td>{esc(self.redact_value(edge[1], edge[0], redaction_mode))}</td><td class='edge-reason'>{esc(reason)}</td><td>{esc(self.redact_value(edge[3], edge[2], redaction_mode))}</td><td>{edge[5]:.0%}</td></tr>\n"
+                    reason = str(edge[5]).replace("_", " ")
+                    graph_edges_html += f"<tr><td>{esc(self.redact_value(edge[1], edge[0], redaction_mode))}</td><td class='edge-reason'>{esc(reason)}</td><td>{esc(self.redact_value(edge[3], edge[2], redaction_mode))}</td><td>{edge[4]:.0%}</td></tr>\n"
 
         profile_rows_html = ""
         if primary:
@@ -430,11 +430,24 @@ class ReportRenderer:
         all_obs_rows = self.engine.repo.get_all_observables()
         obs_table_html = ""
         for row in all_obs_rows[:100]:
-            tier_value = row[5] if len(row) > 5 else "unverified"
+            if hasattr(row, "obs_type"):
+                obs_type = row.obs_type
+                obs_value = row.value
+                source_tool = row.source_tool
+                source_target = row.source_target
+                depth = row.depth
+                tier_value = getattr(row, "tier", "unverified")
+            else:
+                tier_value = row[5] if len(row) > 5 else "unverified"
+                obs_type = row[0]
+                obs_value = row[1]
+                source_tool = row[2]
+                source_target = row[3]
+                depth = row[4]
             obs_table_html += (
-                f"<tr><td><span class='badge badge-{esc(row[0])}'>{esc(row[0])}</span></td>"
-                f"<td><code>{esc(self.redact_value(row[1], row[0], redaction_mode))}</code></td><td>{esc(row[2])}</td>"
-                f"<td>{esc(self.redact_value(str(row[3])[:30], mode=redaction_mode))}</td><td>{row[4]}</td>"
+                f"<tr><td><span class='badge badge-{esc(obs_type)}'>{esc(obs_type)}</span></td>"
+                f"<td><code>{esc(self.redact_value(obs_value, obs_type, redaction_mode))}</code></td><td>{esc(source_tool)}</td>"
+                f"<td>{esc(self.redact_value(str(source_target)[:30], mode=redaction_mode))}</td><td>{depth}</td>"
                 f"<td><span class='tier-badge tier-{esc(tier_value)}'>{esc(tier_value.upper())}</span></td></tr>\n"
             )
 

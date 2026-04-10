@@ -22,7 +22,7 @@ def test_preflight_report_contains_summary():
 def test_preflight_can_filter_by_modules():
     checks = run_preflight(modules=["pd-infra"])
     names = {check.name for check in checks}
-    assert names == {"nuclei", "katana", "httpx_probe", "naabu"}
+    assert names == {"nuclei", "katana", "httpx_probe", "naabu", "tor_policy"}
 
 
 def test_has_hard_failures_false_for_current_filtered_pd_infra():
@@ -32,13 +32,13 @@ def test_has_hard_failures_false_for_current_filtered_pd_infra():
 def test_preflight_can_filter_ua_phone_live_requirements():
     checks = run_preflight(modules=["ua_phone"])
     names = {check.name for check in checks}
-    assert names == {"telegram_bot_token", "getcontact_token", "getcontact_aes_key"}
+    assert names == {"telegram_bot_token", "getcontact_token", "getcontact_aes_key", "tor_policy"}
 
 
 def test_preflight_can_filter_getcontact_alias_live_requirements():
     checks = run_preflight(modules=["getcontact"])
     names = {check.name for check in checks}
-    assert names == {"telegram_bot_token", "getcontact_token", "getcontact_aes_key"}
+    assert names == {"telegram_bot_token", "getcontact_token", "getcontact_aes_key", "tor_policy"}
 
 
 def test_preflight_summary_returns_counts_and_checks():

@@ -74,6 +74,7 @@
         "smart_summary",
         "focused_regression",
         "live_smoke",
+        "tor_policy",
         "full_rollout_rehearsal"
       ],
       "properties": {
@@ -81,6 +82,7 @@
         "smart_summary": {"type": "object"},
         "focused_regression": {"type": "object"},
         "live_smoke": {"type": "object"},
+        "tor_policy": {"type": "object"},
         "full_rollout_rehearsal": {"type": "object"}
       },
       "additionalProperties": true

@@ -133,3 +133,31 @@ def test_chain_runner_exposes_runtime_summary(monkeypatch, tmp_path):
     assert summary["completed"] == 1
     assert summary["skipped_missing_credentials"] == 1
     assert summary["report_mode"] == "strict"
+
+
+def test_chain_runner_handles_none_clusters(monkeypatch, tmp_path):
+    from discovery_engine import DiscoveryEngine
+
+    monkeypatch.setattr(DiscoveryEngine, "resolve_entities", lambda self: None)
+    monkeypatch.setattr(DiscoveryEngine, "ingest_metadata", lambda self, _p: {"status": "skipped"})
+    monkeypatch.setattr(DiscoveryEngine, "get_stats", lambda self: {"ok": True})
+    monkeypatch.setattr(
+        DiscoveryEngine,
+        "run_deep_recon",
+        lambda self, **_kwargs: ({"modules_run": [], "new_observables": 0, "new_phones": [], "new_emails": [], "errors": []}, None),
+    )
+    monkeypatch.setattr(
+        DiscoveryEngine,
+        "render_graph_report",
+        lambda self, output_path, redaction_mode="shareable": Path(output_path).write_text("ok", encoding="utf-8"),
+    )
+
+    exports_dir = tmp_path / "exports"
+    exports_dir.mkdir(parents=True, exist_ok=True)
+    out = tmp_path / "dossier.html"
+
+    runner = ChainRunner(db_path=str(tmp_path / "chain.db"))
+    result = runner.run(exports_dir=str(exports_dir), output_path=str(out))
+
+    assert result.target_name == "unknown"
+    assert result.extra.get("clusters") == 0

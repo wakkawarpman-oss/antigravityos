@@ -24,6 +24,13 @@ def _env_float(name: str, default: float) -> float:
     except (TypeError, ValueError):
         return default
 
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
 # ── Load .env if present ─────────────────────────────────────────
 try:
     from dotenv import load_dotenv
@@ -108,6 +115,16 @@ ADAPTER_FAILURE_THRESHOLD = 3      # consecutive failures before auto-skip
 REQUIRE_PROXY = os.environ.get("HANNA_REQUIRE_PROXY", "1") == "1"
 LOG_ENCRYPT = os.environ.get("HANNA_LOG_ENCRYPT", "0") == "1"
 LOG_ENCRYPT_KEY = os.environ.get("HANNA_LOG_KEY", "")
+
+# Tor/deepweb transport policy (safe defaults: disabled, dry-run compatible)
+TOR_ENABLED = _env_bool("HANNA_TOR_ENABLED", False)
+TOR_PROXY_URL = os.environ.get("HANNA_TOR_PROXY_URL", "socks5h://tor-proxy:9050").strip()
+TOR_CONTROL_ENABLED = _env_bool("HANNA_TOR_CONTROL_ENABLED", False)
+TOR_CONTROL_HOST = os.environ.get("HANNA_TOR_CONTROL_HOST", "tor-proxy").strip()
+TOR_CONTROL_PORT = _env_int("HANNA_TOR_CONTROL_PORT", 9051)
+TOR_ROTATION_POLICY = os.environ.get("HANNA_TOR_ROTATION_POLICY", "batch_on_error").strip().lower() or "batch_on_error"
+TOR_ROTATION_COOLDOWN_SEC = _env_int("HANNA_TOR_ROTATION_COOLDOWN_SEC", 10)
+TOR_REQUIRE_SOCKS5H = _env_bool("HANNA_TOR_REQUIRE_SOCKS5H", True)
 
 # ── Confidence ───────────────────────────────────────────────────
 
