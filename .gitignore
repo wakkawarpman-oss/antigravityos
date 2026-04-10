@@ -11,6 +11,10 @@ venv/
 
 # Local runtime outputs
 runs/
+.cache/
+logs/
+output/
+tmp/
 *.db
 *.sqlite
 *.sqlite3
@@ -27,3 +31,8 @@ node_modules/
 test/data/*mb.txt
 debug-dumps/
 test/debug-*.json
+
+# Generated exports
+exports/*.json
+exports/*.stix.json
+exports/*.zip
