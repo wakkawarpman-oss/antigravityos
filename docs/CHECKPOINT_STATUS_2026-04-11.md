@@ -48,3 +48,8 @@ Source: `.cache/stress_test_report.json`
 - Added non-blocking tool-health reporting module for tool/submodule drift visibility.
 - Added local command `make tool-health-report` for operator diagnostics.
 - Added scheduled CI workflow (`tool-health`) with artifact export, intentionally non-blocking for core release lane.
+
+## Master Plan Execution Update (Tools cleanup lane)
+- Added isolated tools-cleanup utility with dry-run plan (`make tools-cleanup-plan`) and apply mode (`make tools-cleanup-apply`).
+- Cleanup actions are scoped to tool/submodule drift and intentionally separated from core release lane logic.
+- Optional external checkout `tools/tookie-osint` is now ignored in git status to reduce non-core operational noise.

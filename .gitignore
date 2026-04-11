@@ -46,3 +46,7 @@ data/tor-logs/
 .hypothesis/
 mutants/
 perf/
+
+# Optional external tool checkout (non-core lane)
+tools/tookie-osint
+tools/tookie-osint/
