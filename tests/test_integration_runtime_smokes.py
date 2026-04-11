@@ -41,6 +41,11 @@ def test_manual_runtime_smoke_exports_artifacts(tmp_path, monkeypatch):
     )
 
     assert result.mode == "manual"
+    lifecycle = result.extra.get("process_lifecycle", {})
+    assert lifecycle.get("timeout_events", 0) >= 0
+    assert lifecycle.get("kill_attempted", 0) >= 0
+    assert lifecycle.get("kill_succeeded", 0) >= 0
+    assert lifecycle.get("kill_failed", 0) >= 0
     assert result.runtime_summary()["queued"] == 1
     assert result.runtime_summary()["completed"] == 1
     assert set(result.runtime_summary()["exports"]) == {"json", "stix", "zip"}
@@ -64,6 +69,9 @@ def test_aggregate_runtime_smoke_tracks_missing_credentials(monkeypatch):
 
     summary = result.runtime_summary()
     assert result.mode == "aggregate"
+    lifecycle = result.extra.get("process_lifecycle", {})
+    assert lifecycle.get("timeout_events", 0) >= 0
+    assert lifecycle.get("kill_attempted", 0) >= 0
     assert summary["queued"] == 2
     assert 1 <= summary["completed"] <= 2
     assert summary["skipped_missing_credentials"] >= 0

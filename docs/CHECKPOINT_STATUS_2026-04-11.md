@@ -95,3 +95,4 @@ Source: `.cache/stress_test_report.json`
 ## Master Plan Execution Update (Lifecycle telemetry in runner artifacts)
 - Aggregate, chain, and manual runners now reset process-lifecycle counters at run start and attach lifecycle metrics into `RunResult.extra.process_lifecycle`.
 - Added regression assertions in runner test suites to ensure lifecycle telemetry is present and shape-stable in result metadata.
+- Added integration runtime smoke assertions so lifecycle telemetry visibility is enforced in manual and aggregate execution flows, not only unit-level runner tests.
