@@ -1,0 +1,40 @@
+{
+  "timestamp": "2026-04-11T04:22:12.090882",
+  "total_links": 3,
+  "findings": [
+    {
+      "link": "https://xss-game.appspot.com/level1/frame",
+      "sql_injection": false,
+      "xss": false,
+      "structure": {
+        "protocol": "https",
+        "domain": "xss-game.appspot.com",
+        "path": "/level1/frame"
+      }
+    },
+    {
+      "link": "https://example.com",
+      "sql_injection": false,
+      "xss": false,
+      "structure": {
+        "protocol": "https",
+        "domain": "example.com",
+        "path": "/"
+      }
+    },
+    {
+      "link": "https://github.com",
+      "sql_injection": false,
+      "xss": false,
+      "structure": {
+        "protocol": "https",
+        "domain": "github.com",
+        "path": "/"
+      }
+    }
+  ],
+  "summary": {
+    "sql_injection_hits": 0,
+    "xss_hits": 0
+  }
+}

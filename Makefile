@@ -1,4 +1,4 @@
-.PHONY: prelaunch-gate perf-install perf-unit perf-load perf-load-wrk perf-load-k6 perf-memory perf-stress perf-endurance perf-cpu perf-all perf-report perf-clean perf-files tookie tookie-help grafana-up grafana-down grafana-logs grafana-open osint-tools-install parse-test-full nifi-up nifi-down nifi-logs nifi-open spiderfoot-up spiderfoot-down spiderfoot-logs spiderfoot-local-up spiderfoot-local-down spiderfoot-local-scan spiderfoot-local-batch
+.PHONY: prelaunch-gate perf-install perf-unit perf-load perf-load-wrk perf-load-k6 perf-memory perf-stress perf-endurance perf-cpu perf-all perf-report perf-clean perf-files tookie tookie-help grafana-up grafana-down grafana-logs grafana-open osint-tools-install parse-test-full nifi-up nifi-down nifi-logs nifi-open spiderfoot-up spiderfoot-down spiderfoot-logs spiderfoot-local-up spiderfoot-local-down spiderfoot-local-scan spiderfoot-local-batch ci-guard-dryrun
 
 PERF_DIR := perf
 PERF_STUB_HOST ?= 127.0.0.1
@@ -82,7 +82,7 @@ spiderfoot-local-batch:
 	fi
 	@for target in $(TARGETS); do \
 		echo "[SpiderFoot batch] $$target"; \
-		TARGET="$$target" MODULES="$(MODULES)" THREADS="$(THREADS)" OUT_FILE="$$target.json" DATA_DIR="$(PWD)/monitoring/spiderfoot/local-data" bash ./scripts/spiderfoot_local_scan.sh; \
+		TARGETS="" TARGET="$$target" MODULES="$(MODULES)" THREADS="$(THREADS)" OUT_FILE="$$target.json" DATA_DIR="$(PWD)/monitoring/spiderfoot/local-data" bash ./scripts/spiderfoot_local_scan.sh; \
 	done
 
 # ========================================
@@ -222,3 +222,6 @@ perf-files:
 	@echo "perf/cpu_test.py"
 	@echo "perf/generate_report.py"
 	@echo "perf/http_stub.py"
+
+ci-guard-dryrun:
+	@python3 scripts/network_guard.py
