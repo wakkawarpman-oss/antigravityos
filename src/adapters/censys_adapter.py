@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional, Any, Union, List, Dict
 from pydantic import ValidationError
 
-from adapters.base import ReconAdapter, ReconHit
+from adapters.base import ReconAdapter, ReconHit, MissingCredentialsError, FreemiumDegradedError
 from logging_utils import get_logger
 from models.api_schemas import CensysSearchResponseSchema
 
@@ -29,7 +29,7 @@ class CensysAdapter(ReconAdapter):
         api_id = os.environ.get("CENSYS_API_ID", "").strip()
         api_secret = os.environ.get("CENSYS_API_SECRET", "").strip()
         if not api_id or not api_secret:
-            return []
+            raise MissingCredentialsError("CENSYS_API_ID", "CENSYS_API_SECRET")
 
         hits: list[ReconHit] = []
         for query in self._collect_queries(target_name, known_usernames)[:5]:
@@ -62,6 +62,11 @@ class CensysAdapter(ReconAdapter):
         }
         try:
             status, body = self._post(url, payload, headers=headers)
+            body_l = (body or "").lower()
+            if status in {401, 403}:
+                raise FreemiumDegradedError("censys auth/plan access denied")
+            if status == 429 or "rate limit" in body_l or "quota" in body_l:
+                raise FreemiumDegradedError("censys quota or rate limit reached")
             if status != 200 or not body:
                 return None
             return json.loads(body)

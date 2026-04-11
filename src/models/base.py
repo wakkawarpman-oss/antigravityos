@@ -96,6 +96,7 @@ class RunResult:
         skipped_missing_credentials = sum(1 for _module, _message, kind in error_entries if kind == "missing_credentials")
         missing_binary_count = sum(1 for _module, _message, kind in error_entries if kind == "missing_binary")
         dependency_unavailable_count = sum(1 for _module, _message, kind in error_entries if kind == "dependency_unavailable")
+        freemium_degraded_count = sum(1 for _module, _message, kind in error_entries if kind == "freemium_degraded")
         worker_crash_count = sum(1 for _module, _message, kind in error_entries if kind == "worker_crash")
         cancelled_on_shutdown_count = sum(1 for _module, _message, kind in error_entries if kind == "cancelled_on_shutdown")
         killed_for_shutdown_count = sum(1 for _module, _message, kind in error_entries if kind == "killed_for_shutdown")
@@ -104,6 +105,7 @@ class RunResult:
             "missing_credentials",
             "missing_binary",
             "dependency_unavailable",
+            "freemium_degraded",
             "worker_crash",
             "cancelled_on_shutdown",
             "killed_for_shutdown",
@@ -122,6 +124,7 @@ class RunResult:
             "skipped_missing_credentials": skipped_missing_credentials,
             "missing_binary": missing_binary_count,
             "dependency_unavailable": dependency_unavailable_count,
+            "freemium_degraded": freemium_degraded_count,
             "worker_crash": worker_crash_count,
             "cancelled_on_shutdown": cancelled_on_shutdown_count,
             "killed_for_shutdown": killed_for_shutdown_count,
@@ -178,6 +181,7 @@ class RunResult:
             f"failed={runtime['failed']}  timed_out={runtime['timed_out']}  "
             f"skipped_missing_credentials={runtime['skipped_missing_credentials']}  "
             f"missing_binary={runtime['missing_binary']}  dependency_unavailable={runtime['dependency_unavailable']}  "
+            f"freemium_degraded={runtime['freemium_degraded']}  "
             f"worker_crash={runtime['worker_crash']}  cancelled_on_shutdown={runtime['cancelled_on_shutdown']}  "
             f"killed_for_shutdown={runtime['killed_for_shutdown']}"
         )

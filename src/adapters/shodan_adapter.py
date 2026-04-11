@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 from pydantic import ValidationError
 
-from adapters.base import ReconAdapter, ReconHit
+from adapters.base import ReconAdapter, ReconHit, MissingCredentialsError, FreemiumDegradedError
 from adapters.cli_common import run_cli
 from logging_utils import get_logger
 from models.api_schemas import ShodanResponseSchema
@@ -21,6 +21,8 @@ class ShodanAdapter(ReconAdapter):
     region = "global"
 
     def search(self, target_name: str, known_phones: list[str], known_usernames: list[str]) -> list[ReconHit]:
+        if not os.environ.get("SHODAN_API_KEY", "").strip():
+            raise MissingCredentialsError("SHODAN_API_KEY")
         hits: list[ReconHit] = []
         for target in self._collect_targets(target_name, known_usernames)[:5]:
             hits.extend(self._run_shodan(target))
@@ -42,6 +44,16 @@ class ShodanAdapter(ReconAdapter):
         proc = run_cli([shodan_bin, "host", target, "--format", "json"], timeout=self.timeout * 8)
         if not proc:
             return []
+        stderr_l = (proc.stderr or "").lower()
+        stdout_l = (proc.stdout or "").lower()
+        if proc.returncode != 0:
+            if any(token in stderr_l for token in ("rate limit", "quota", "payment required")):
+                raise FreemiumDegradedError("shodan quota or rate limit reached")
+            if any(token in stderr_l for token in ("api key", "unauthorized", "forbidden", "401", "403")):
+                raise FreemiumDegradedError("shodan auth/plan access denied")
+            return []
+        if "rate limit" in stdout_l or "quota" in stdout_l:
+            raise FreemiumDegradedError("shodan quota or rate limit reached")
         output = (proc.stdout or "").strip()
         if not output:
             return []

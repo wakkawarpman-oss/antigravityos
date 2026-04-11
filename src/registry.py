@@ -76,6 +76,22 @@ ADAPTER_REGISTRY: dict[str, type[ReconAdapter]] = {
 MODULES: dict[str, type[ReconAdapter]] = ADAPTER_REGISTRY
 MODULE_ALIASES: dict[str, str] = {"getcontact": "ua_phone"}
 
+# Freemium enrichment lane policy.
+# These modules are optional and must degrade to baseline without blocking release.
+FREEMIUM_MODULES: set[str] = {"shodan", "censys"}
+FREEMIUM_REQUIREMENTS: dict[str, tuple[str, ...]] = {
+    "shodan": ("SHODAN_API_KEY",),
+    "censys": ("CENSYS_API_ID", "CENSYS_API_SECRET"),
+}
+FREEMIUM_BASELINE_FALLBACK: tuple[str, ...] = (
+    "subfinder",
+    "dnsx",
+    "httpx_probe",
+    "naabu",
+    "nmap",
+    "nuclei",
+)
+
 
 def _default_module_names() -> list[str]:
     return [name for name in MODULES.keys() if name not in MODULE_ALIASES]
@@ -108,6 +124,8 @@ MODULE_PRESETS: dict[str, list[str]] = {
     "subdomain-full": ["subfinder", "amass", "dnsx", "ashok"],
     "port-scan": ["naabu", "nmap"],
     "infra-deep": ["subfinder", "dnsx", "gau", "httpx_probe", "nuclei", "nmap", "shodan", "censys"],
+    "infra-deep-baseline": ["subfinder", "dnsx", "gau", "httpx_probe", "nuclei", "nmap"],
+    "infra-deep-freemium": ["subfinder", "dnsx", "gau", "httpx_probe", "nuclei", "nmap", "shodan", "censys"],
     "recon-auto-quick": ["subfinder", "dnsx", "httpx_probe", "nuclei", "katana", "naabu"],
     "recon-auto-deep": ["subfinder", "amass", "dnsx", "gau", "httpx_probe", "nuclei", "katana", "naabu"],
     "recon-auto": ["subfinder", "dnsx", "gau", "httpx_probe", "nuclei", "katana", "naabu"],

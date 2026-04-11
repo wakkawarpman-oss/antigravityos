@@ -53,3 +53,10 @@ Source: `.cache/stress_test_report.json`
 - Added isolated tools-cleanup utility with dry-run plan (`make tools-cleanup-plan`) and apply mode (`make tools-cleanup-apply`).
 - Cleanup actions are scoped to tool/submodule drift and intentionally separated from core release lane logic.
 - Optional external checkout `tools/tookie-osint` is now ignored in git status to reduce non-core operational noise.
+
+## Master Plan Execution Update (Freemium enrichment fallback lane)
+- Added explicit freemium module policy in registry (`shodan`, `censys`) with baseline fallback preset support.
+- Worker task build now degrades gracefully on missing freemium credentials and auto-schedules baseline modules without blocking.
+- Adapter error model now includes `freemium_degraded`; dispatcher classifies missing-credential/freemium events as non-blocking task skips.
+- Runtime summary contract now includes `freemium_degraded` counter and preserves failure semantics for strict blockers only.
+- Added focused tests for freemium fallback scheduling, adapter credential gates, and runtime summary compatibility.

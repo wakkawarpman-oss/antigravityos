@@ -26,7 +26,15 @@ from config import (
     PRIORITY_WORKER_TIMEOUT,
     WORKER_TIMEOUT,
 )
-from registry import LANE_ORDER, MODULES, MODULE_LANE, MODULE_PRIORITY
+from registry import (
+    LANE_ORDER,
+    MODULES,
+    MODULE_LANE,
+    MODULE_PRIORITY,
+    FREEMIUM_MODULES,
+    FREEMIUM_REQUIREMENTS,
+    FREEMIUM_BASELINE_FALLBACK,
+)
 
 
 @dataclass
@@ -96,10 +104,37 @@ def build_tasks(
     """Build a sorted task list from module names. Returns (tasks, errors)."""
     tasks: list[ReconTask] = []
     errors: list[dict] = []
-    for mod_name in module_names:
+    scheduled: set[str] = set()
+    pending: list[str] = list(module_names)
+
+    while pending:
+        mod_name = pending.pop(0)
+        if mod_name in scheduled:
+            continue
+
+        if mod_name in FREEMIUM_MODULES:
+            required_env = FREEMIUM_REQUIREMENTS.get(mod_name, ())
+            missing_env = [name for name in required_env if not os.environ.get(name, "").strip()]
+            if missing_env:
+                errors.append(
+                    {
+                        "module": mod_name,
+                        "error": f"missing credentials: {', '.join(missing_env)}; fallback to baseline lane",
+                        "error_kind": "missing_credentials",
+                        "degraded": True,
+                        "fallback_modules": list(FREEMIUM_BASELINE_FALLBACK),
+                    }
+                )
+                for fallback_mod in FREEMIUM_BASELINE_FALLBACK:
+                    if fallback_mod not in scheduled and fallback_mod not in pending:
+                        pending.append(fallback_mod)
+                scheduled.add(mod_name)
+                continue
+
         adapter_cls = MODULES.get(mod_name)
         if not adapter_cls:
             errors.append({"module": mod_name, "error": f"Unknown module: {mod_name}", "error_kind": "unknown_module"})
+            scheduled.add(mod_name)
             continue
         tasks.append(ReconTask(
             module_name=mod_name,
@@ -117,6 +152,7 @@ def build_tasks(
             ),
             leak_dir=leak_dir,
         ))
+        scheduled.add(mod_name)
     tasks.sort()
     return tasks, errors
 

@@ -82,6 +82,15 @@ class DependencyUnavailableError(AdapterExecutionError):
         super().__init__(f"dependency unavailable: {detail}")
 
 
+class FreemiumDegradedError(AdapterExecutionError):
+    """Raised when optional freemium enrichment is unavailable (quota/rate/auth), non-blocking for baseline."""
+
+    error_kind = "freemium_degraded"
+
+    def __init__(self, detail: str):
+        super().__init__(f"freemium degraded: {detail}")
+
+
 class RateLimitError(AdapterExecutionError):
     """Raised when upstream responds with rate-limit and call should be retried."""
 

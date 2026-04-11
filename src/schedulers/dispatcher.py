@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Set, Tuple
 
-from adapters.base import ReconAdapter, ReconHit
+from adapters.base import AdapterExecutionError, ReconAdapter, ReconHit
 from config import CROSS_CONFIRM_BOOST
 from tor_control import request_tor_rotation
 from worker import ReconTask, TaskResult
@@ -225,6 +225,50 @@ class MultiLaneDispatcher:
                     hits=[],
                     error=msg,
                     error_kind="timeout",
+                    elapsed_sec=elapsed,
+                    raw_log_path="",
+                )
+            )
+
+        except AdapterExecutionError as exc:
+            elapsed = time.monotonic() - t0
+            err_msg = str(exc)
+            error_kind = getattr(exc, "error_kind", "adapter_error")
+            self.errors.append({"module": mod_name, "error": err_msg, "error_kind": error_kind})
+            event_type = "task_error"
+            if error_kind in {"missing_credentials", "freemium_degraded"}:
+                event_type = "task_skipped"
+            self._emit({
+                "type": event_type,
+                "label": label,
+                "lane": task.lane,
+                "module": mod_name,
+                "error": err_msg,
+                "error_kind": error_kind,
+                "elapsed_sec": round(elapsed, 2),
+            })
+            # Missing credentials/freemium degradation are non-blocking enrichment failures.
+            if error_kind not in {"missing_credentials", "freemium_degraded"}:
+                self._emit({
+                    "type": "tor_rotation_requested",
+                    "label": label,
+                    "module": mod_name,
+                    "reason": "task_error",
+                })
+                tor_result = await asyncio.to_thread(request_tor_rotation, "task_error", mod_name)
+                self._emit({
+                    "type": "tor_rotation_result",
+                    "label": label,
+                    **tor_result,
+                })
+            log.error("[%s] Task failed: %s", mod_name, err_msg)
+            self.task_results.append(
+                TaskResult(
+                    module_name=mod_name,
+                    lane=task.lane,
+                    hits=[],
+                    error=err_msg,
+                    error_kind=error_kind,
                     elapsed_sec=elapsed,
                     raw_log_path="",
                 )
