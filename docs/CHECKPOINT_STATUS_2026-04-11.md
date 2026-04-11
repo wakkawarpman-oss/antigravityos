@@ -38,3 +38,8 @@ Source: `.cache/stress_test_report.json`
 - Direct logic checks now include: targeted tests, full guard, `opsec_policy`, `contract_compatibility`, `export_consistency`, and drift check.
 - Asymmetric risk register and KPI method arbitration are part of guard output and release decisioning.
 - CI enforcement updated: quality gates now execute `make release-guard` and workflows are aligned with the active `main` branch.
+
+## Master Plan Execution Update (Dependency reporting)
+- Added weekly dependency report automation via GitHub Actions schedule (`dependency-report` workflow).
+- Added machine-readable and Markdown dependency snapshots (`.cache/reports/dependency-weekly.json`, `.cache/reports/dependency-weekly.md`).
+- Added local operator command `make dependency-report` for on-demand report generation.

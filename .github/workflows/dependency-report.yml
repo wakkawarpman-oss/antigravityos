@@ -1,0 +1,46 @@
+name: Dependency Report
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+jobs:
+  weekly-dependency-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate weekly dependency report
+        run: |
+          python scripts/generate_dependency_report.py \
+            --output .cache/reports/dependency-weekly.json \
+            --markdown .cache/reports/dependency-weekly.md
+
+      - name: Upload dependency report artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-weekly-report
+          path: |
+            .cache/reports/dependency-weekly.json
+            .cache/reports/dependency-weekly.md
