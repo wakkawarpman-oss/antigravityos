@@ -22,6 +22,7 @@ from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Set, Tupl
 
 from adapters.base import ReconAdapter, ReconHit
 from config import CROSS_CONFIRM_BOOST
+from tor_control import request_tor_rotation
 from worker import ReconTask, TaskResult
 
 log = logging.getLogger("hanna.dispatcher")
@@ -187,6 +188,18 @@ class MultiLaneDispatcher:
                 "error": msg,
                 "elapsed_sec": round(elapsed, 2),
             })
+            self._emit({
+                "type": "tor_rotation_requested",
+                "label": label,
+                "module": mod_name,
+                "reason": "task_timeout",
+            })
+            tor_result = await asyncio.to_thread(request_tor_rotation, "task_timeout", mod_name)
+            self._emit({
+                "type": "tor_rotation_result",
+                "label": label,
+                **tor_result,
+            })
             log.error("[%s] Task timeout: %s", mod_name, msg)
 
         except Exception as exc:
@@ -200,5 +213,17 @@ class MultiLaneDispatcher:
                 "module": mod_name,
                 "error": err_msg,
                 "elapsed_sec": round(elapsed, 2),
+            })
+            self._emit({
+                "type": "tor_rotation_requested",
+                "label": label,
+                "module": mod_name,
+                "reason": "task_error",
+            })
+            tor_result = await asyncio.to_thread(request_tor_rotation, "task_error", mod_name)
+            self._emit({
+                "type": "tor_rotation_result",
+                "label": label,
+                **tor_result,
             })
             log.error("[%s] Task failed: %s", mod_name, err_msg)

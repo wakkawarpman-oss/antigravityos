@@ -121,3 +121,37 @@ def test_prelaunch_tor_policy_payload_can_be_required():
 
     failures = module.evaluate_required_checks(payload, ["tor_policy"])
     assert failures == []
+
+
+def test_tor_control_rotation_executes_when_enabled(monkeypatch):
+    import tor_control as tor_mod
+
+    monkeypatch.setattr(tor_mod, "TOR_ENABLED", True)
+    monkeypatch.setattr(tor_mod, "TOR_CONTROL_ENABLED", True)
+    monkeypatch.setattr(tor_mod, "TOR_ROTATION_POLICY", "always")
+    monkeypatch.setattr(tor_mod, "TOR_ROTATION_COOLDOWN_SEC", 0)
+    monkeypatch.setattr(tor_mod, "_LAST_ROTATION_TS", 0.0)
+    monkeypatch.setattr(tor_mod, "_send_newnym", lambda *_args, **_kwargs: (True, "newnym_ok"))
+
+    result = tor_mod.request_tor_rotation("task_error", "ua_phone")
+
+    assert result["status"] == "rotated"
+    assert result["detail"] == "newnym_ok"
+
+
+def test_tor_control_rotation_respects_cooldown(monkeypatch):
+    import tor_control as tor_mod
+
+    monkeypatch.setattr(tor_mod, "TOR_ENABLED", True)
+    monkeypatch.setattr(tor_mod, "TOR_CONTROL_ENABLED", True)
+    monkeypatch.setattr(tor_mod, "TOR_ROTATION_POLICY", "always")
+    monkeypatch.setattr(tor_mod, "TOR_ROTATION_COOLDOWN_SEC", 30)
+    monkeypatch.setattr(tor_mod, "_LAST_ROTATION_TS", 0.0)
+    monkeypatch.setattr(tor_mod, "_send_newnym", lambda *_args, **_kwargs: (True, "newnym_ok"))
+
+    first = tor_mod.request_tor_rotation("task_error", "ua_phone")
+    second = tor_mod.request_tor_rotation("task_timeout", "ua_phone")
+
+    assert first["status"] == "rotated"
+    assert second["status"] == "skipped"
+    assert second["reason"] == "cooldown"

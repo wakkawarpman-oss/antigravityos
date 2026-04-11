@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 
 from adapters.base import ReconHit
 from config import CROSS_CONFIRM_BOOST, TOR_ENABLED, TOR_ROTATION_COOLDOWN_SEC, TOR_ROTATION_POLICY
+from tor_control import request_tor_rotation
 from worker import ReconTask, TaskResult, _run_adapter_isolated
 
 
@@ -169,6 +170,14 @@ class LaneScheduler:
                                         "cooldown_sec": TOR_ROTATION_COOLDOWN_SEC,
                                     },
                                 )
+                                LaneScheduler._emit(
+                                    event_callback,
+                                    {
+                                        "type": "tor_rotation_result",
+                                        "label": label,
+                                        **request_tor_rotation("task_crashed", task.module_name),
+                                    },
+                                )
                             continue
 
                         tr = TaskResult.from_dict(result_dict, lane=task.lane)
@@ -199,6 +208,14 @@ class LaneScheduler:
                                         "reason": "task_error",
                                         "policy": TOR_ROTATION_POLICY,
                                         "cooldown_sec": TOR_ROTATION_COOLDOWN_SEC,
+                                    },
+                                )
+                                LaneScheduler._emit(
+                                    event_callback,
+                                    {
+                                        "type": "tor_rotation_result",
+                                        "label": label,
+                                        **request_tor_rotation("task_error", tr.module_name),
                                     },
                                 )
                         else:
@@ -258,6 +275,14 @@ class LaneScheduler:
                                     "reason": "task_timeout",
                                     "policy": TOR_ROTATION_POLICY,
                                     "cooldown_sec": TOR_ROTATION_COOLDOWN_SEC,
+                                },
+                            )
+                            LaneScheduler._emit(
+                                event_callback,
+                                {
+                                    "type": "tor_rotation_result",
+                                    "label": label,
+                                    **request_tor_rotation("task_timeout", task.module_name),
                                 },
                             )
             finally:
