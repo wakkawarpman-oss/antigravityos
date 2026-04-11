@@ -32,3 +32,9 @@ Source: `.cache/stress_test_report.json`
 - Deploy gate policy: `Production Deploy` now always requires `contract_provenance`; optional strict mode (`HANNA_DEPLOY_REQUIRE_FULL_REHEARSAL`) also requires `full_rollout_rehearsal`.
 - Bridge preflight policy: `legacy_bridge_api_token` is now an always-visible preflight check; it hard-fails only when `HANNA_LEGACY_BRIDGE_ENABLED=1` and `OSINT_API_TOKEN` is missing.
 - Prelaunch now runs `Contract provenance smoke` unconditionally and publishes `contract-provenance-smoke.json`; `checks.contract_provenance` is based on this smoke and further tightened by rehearsal provenance when full rehearsal is enabled.
+
+## Master Plan Execution Update (Pre-release governance)
+- Mandatory post-block control layer is implemented in `release_guard`.
+- Direct logic checks now include: targeted tests, full guard, `opsec_policy`, `contract_compatibility`, `export_consistency`, and drift check.
+- Asymmetric risk register and KPI method arbitration are part of guard output and release decisioning.
+- CI enforcement updated: quality gates now execute `make release-guard` and workflows are aligned with the active `main` branch.

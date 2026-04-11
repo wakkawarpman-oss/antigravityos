@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches:
+      - main
       - master
   workflow_dispatch:
 
@@ -34,6 +35,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Mandatory release-guard cycle
+        run: make release-guard
 
       - name: Contract provenance smoke
         run: python scripts/ci_verify_contract_provenance_smoke.py
