@@ -41,6 +41,37 @@ def get_process_lifecycle_stats() -> dict[str, int]:
     return dict(_PROCESS_LIFECYCLE_STATS)
 
 
+def process_lifecycle_acceptance(
+    *,
+    min_success_ratio: float = 0.99,
+    max_failed_kills: int = 0,
+) -> dict[str, object]:
+    """Evaluate timeout cleanup health against acceptance thresholds."""
+    stats = get_process_lifecycle_stats()
+    attempted = int(stats.get("kill_attempted", 0))
+    succeeded = int(stats.get("kill_succeeded", 0))
+    failed = int(stats.get("kill_failed", 0))
+    timeout_events = int(stats.get("timeout_events", 0))
+
+    success_ratio = 1.0 if attempted == 0 else (succeeded / float(attempted))
+    invariants_ok = attempted == timeout_events and succeeded + failed == attempted
+    threshold_ok = success_ratio >= float(min_success_ratio) and failed <= int(max_failed_kills)
+    ok = invariants_ok and threshold_ok
+
+    return {
+        "ok": ok,
+        "timeout_events": timeout_events,
+        "kill_attempted": attempted,
+        "kill_succeeded": succeeded,
+        "kill_failed": failed,
+        "kill_success_ratio": round(success_ratio, 4),
+        "invariants_ok": invariants_ok,
+        "threshold_ok": threshold_ok,
+        "min_success_ratio": float(min_success_ratio),
+        "max_failed_kills": int(max_failed_kills),
+    }
+
+
 def _augment_path(path_value: Optional[str]) -> str:
     """Append common user-level binary directories to PATH if missing."""
     parts = [p for p in (path_value or "").split(":") if p]

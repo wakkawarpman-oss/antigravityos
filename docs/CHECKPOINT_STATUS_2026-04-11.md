@@ -86,3 +86,8 @@ Source: `.cache/stress_test_report.json`
 - Added registry-wide OPSEC matrix tests to verify all registered adapters enforce proxy requirement when strict policy is enabled.
 - Added registry-wide initialization coverage to verify all registered adapters can initialize under strict mode with an explicit proxy.
 - This closes the previous gap from spot-check OPSEC tests toward full adapter-surface policy validation.
+
+## Master Plan Execution Update (Timeout burst lifecycle acceptance)
+- Added explicit process-lifecycle acceptance evaluator for timeout cleanup invariants and thresholds.
+- Added burst regression test (25 timeout events) that validates cleanup metrics: attempts, successes, failures, and success ratio.
+- Integrated this burst acceptance check into `tests/test_adapter_capability_matrix.py`, so it runs in the targeted release-guard test pack.

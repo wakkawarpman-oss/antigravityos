@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import subprocess
+
 import adapters.base as base_mod
+from adapters import cli_common
 
 from registry import MODULES, MODULE_PRESETS, MODULE_LANE, MODULE_PRIORITY, resolve_modules
 
@@ -57,3 +60,31 @@ def test_all_registered_adapters_allow_init_with_proxy(monkeypatch):
         except Exception as exc:  # pragma: no cover - diagnostic branch
             failures.append(f"{module_name}:{type(exc).__name__}:{exc}")
     assert failures == []
+
+
+def test_cli_timeout_burst_cleanup_meets_acceptance(monkeypatch):
+    cli_common.reset_process_lifecycle_stats()
+
+    def _fake_run(*_args, **_kwargs):
+        exc = subprocess.TimeoutExpired(cmd=["dummy"], timeout=0.01, output="", stderr="err")
+        exc.pid = 4321  # type: ignore[attr-defined]
+        raise exc
+
+    monkeypatch.setattr(cli_common.subprocess, "run", _fake_run)
+    monkeypatch.setattr(cli_common, "_resolve_executable", lambda exe, _path: exe)
+    monkeypatch.setattr(cli_common.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(cli_common.os, "killpg", lambda _pgid, _sig: None)
+
+    for _ in range(25):
+        proc = cli_common.run_cli(["dummy"], timeout=0.01, proxy="socks5h://127.0.0.1:9050")
+        assert proc is not None
+        assert proc.returncode == 124
+
+    verdict = cli_common.process_lifecycle_acceptance(min_success_ratio=1.0, max_failed_kills=0)
+
+    assert verdict["ok"] is True
+    assert verdict["timeout_events"] == 25
+    assert verdict["kill_attempted"] == 25
+    assert verdict["kill_succeeded"] == 25
+    assert verdict["kill_failed"] == 0
+    assert verdict["kill_success_ratio"] == 1.0
