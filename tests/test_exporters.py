@@ -210,3 +210,36 @@ def test_zip_exporter_ignores_non_artifact_raw_record_paths(tmp_path):
     with zipfile.ZipFile(path) as zf:
         names = set(zf.namelist())
         assert "artifacts/unrelated-system-like-dir/ignore.txt" not in names
+
+
+def test_zip_export_json_stix_observed_data_parity(tmp_path):
+    result = _sample_result()
+    html_path = tmp_path / "dossier.html"
+    html_path.write_text("<html>safe</html>", encoding="utf-8")
+
+    second_hit = ReconHit(
+        observable_type="domain",
+        value="example.com",
+        source_module="subfinder",
+        source_detail="fixture",
+        confidence=0.6,
+        raw_record={"source": "fixture"},
+    )
+    result.all_hits.append(second_hit)
+    result.outcomes[0].hits.append(second_hit)
+
+    archive = export_run_result_zip(result, tmp_path, html_path=html_path, report_mode="shareable")
+
+    with zipfile.ZipFile(archive) as zf:
+        json_name = next(name for name in zf.namelist() if name.endswith(".json") and not name.endswith(".stix.json") and name != "manifest.json")
+        stix_name = next(name for name in zf.namelist() if name.endswith(".stix.json"))
+
+        run_payload = json.loads(zf.read(json_name).decode("utf-8"))
+        stix_payload = json.loads(zf.read(stix_name).decode("utf-8"))
+
+    json_observed = len(run_payload.get("all_hits", []))
+    stix_observed = sum(1 for obj in stix_payload.get("objects", []) if obj.get("type") == "observed-data")
+
+    assert json_observed == 2
+    assert stix_observed == 2
+    assert stix_observed == json_observed

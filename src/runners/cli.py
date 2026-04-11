@@ -5,7 +5,7 @@ from datetime import datetime
 import json
 
 from config import RUNS_ROOT
-from registry import MODULES, MODULE_PRESETS, resolve_modules
+from registry import MODULES, MODULE_PRESETS, ModuleResolutionError, resolve_modules
 from runners.base import DeepReconRunner
 
 def _cli():
@@ -39,12 +39,15 @@ def _cli():
     if not args.target:
         parser.error("--target required (use --list-modules to browse)")
 
-    if args.module:
-        mods = [args.module]
-    elif args.mode:
-        mods = resolve_modules([args.mode])
-    else:
-        mods = resolve_modules(["full-spectrum"])
+    try:
+        if args.module:
+            mods = [args.module]
+        elif args.mode:
+            mods = resolve_modules([args.mode])
+        else:
+            mods = resolve_modules(["full-spectrum"])
+    except ModuleResolutionError as exc:
+        parser.error(str(exc))
 
     runner = DeepReconRunner(proxy=args.proxy, timeout=args.timeout, leak_dir=args.leak_dir)
 

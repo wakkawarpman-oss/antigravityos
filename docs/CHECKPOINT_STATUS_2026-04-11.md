@@ -60,3 +60,9 @@ Source: `.cache/stress_test_report.json`
 - Adapter error model now includes `freemium_degraded`; dispatcher classifies missing-credential/freemium events as non-blocking task skips.
 - Runtime summary contract now includes `freemium_degraded` counter and preserves failure semantics for strict blockers only.
 - Added focused tests for freemium fallback scheduling, adapter credential gates, and runtime summary compatibility.
+
+## Master Plan Execution Update (Strict module resolution + export parity)
+- Module/preset resolution is now fail-fast: unknown module or preset names raise explicit resolver errors instead of silent skips.
+- CLI path now surfaces module-resolution errors as parser-level actionable feedback.
+- Added resolver regression tests for unknown module/preset handling.
+- Added cross-export parity regression test to enforce observed-data consistency between runtime JSON and STIX artifacts inside ZIP evidence packs.

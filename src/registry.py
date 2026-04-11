@@ -210,6 +210,16 @@ MODULE_LANE: dict[str, str] = {
 LANE_ORDER: dict[str, int] = {"fast": 0, "slow": 1}
 
 
+class ModuleResolutionError(ValueError):
+    """Raised when module/preset selection contains unknown entries."""
+
+    def __init__(self, unknown: list[str]):
+        ordered = list(dict.fromkeys(unknown))
+        detail = ", ".join(ordered)
+        super().__init__(f"Unknown modules/presets: {detail}")
+        self.unknown = ordered
+
+
 def resolve_modules(names: list[str] | None) -> list[str]:
     """Resolve a list of module names / preset names into concrete module names."""
     if not names:
@@ -217,9 +227,14 @@ def resolve_modules(names: list[str] | None) -> list[str]:
     if len(names) == 1 and names[0] in MODULE_PRESETS:
         return MODULE_PRESETS[names[0]]
     resolved: list[str] = []
+    unknown: list[str] = []
     for n in names:
         if n in MODULE_PRESETS:
             resolved.extend(MODULE_PRESETS[n])
         elif n in MODULES:
             resolved.append(n)
+        else:
+            unknown.append(n)
+    if unknown:
+        raise ModuleResolutionError(unknown)
     return list(dict.fromkeys(resolved))  # dedup preserving order
