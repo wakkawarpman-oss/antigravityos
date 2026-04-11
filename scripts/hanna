@@ -16,6 +16,21 @@ ROOT="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 PY_BIN="$ROOT/.venv/bin/python3"
 MODE="${1:-}"
 
+if [[ "$MODE" == "--help" || "$MODE" == "-h" ]]; then
+  cat <<'EOF'
+HANNA OSINT
+
+Usage:
+  hanna <command> [options]
+
+Common commands:
+  pf, chain, agg, man, ui, tui, ls, rs
+
+Run 'hanna <command> --help' for detailed command help.
+EOF
+  exit 0
+fi
+
 if [[ ! -x "$PY_BIN" ]]; then
   PY_BIN="$(command -v python3)"
 fi

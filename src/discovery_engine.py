@@ -38,6 +38,7 @@ import logging
 import math
 import os
 import re
+from collections import Counter
 
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -229,6 +230,13 @@ class DiscoveryEngine:
             redaction_modes=_REDACTION_MODES,
             strip_ansi=strip_ansi,
         )
+        self.quality = Counter({
+            "raw_hits": 0,
+            "parse_ok": 0,
+            "validate_ok": 0,
+            "dedup_hits": 0,
+            "rejected_fp": 0,
+        })
 
     def _record_rejected_target(self, source_file: str, raw_target: str, reason: str) -> None:
         self.repo.record_rejected_target(source_file, raw_target, reason)
@@ -432,26 +440,34 @@ class DiscoveryEngine:
 
     def _classify_and_register(self, value: str, source_tool: str, source_target: str, source_file: str, depth: int = 0, is_original_target: bool = False) -> Optional[Observable]:
         """Classify a value, normalize it, and register in DB. Returns None for unrecognizable types."""
+        self.quality["raw_hits"] += 1
         value = value.strip()
         if not value or _is_garbage_target(value):
+            self.quality["rejected_fp"] += 1
             return None
 
         obs_type = self._infer_type(value)
         if obs_type is None:
+            self.quality["rejected_fp"] += 1
             return None  # Unknown type — refuse to guess (was defaulting to "username")
+        self.quality["parse_ok"] += 1
 
         # Block placeholder domains at registration level
         if obs_type == "domain" and value.lower().strip().rstrip(".") in _PLACEHOLDER_DOMAINS:
+            self.quality["rejected_fp"] += 1
             return None
 
         normalized = self._normalize(obs_type, value)
         if not normalized:
+            self.quality["rejected_fp"] += 1
             return None
+        self.quality["validate_ok"] += 1
 
         # Corroboration tracking: if already registered, update source_tools count
         fp = f"{obs_type}:{normalized}"
         existing = self._obs_by_value.get(fp)
         if existing:
+            self.quality["dedup_hits"] += 1
             existing.source_tools.add(source_tool)
             self.repo.register_observable(
                 obs_type, normalized, value, source_tool,
@@ -825,6 +841,21 @@ class DiscoveryEngine:
             "identity_clusters": len(self.clusters),
             "pending_pivots": queue_count,
             "tool_stats": self._tool_stats,
+            "quality": self.get_quality_report(),
+        }
+
+    def get_quality_report(self) -> dict[str, Any]:
+        total = self.quality["raw_hits"]
+        parse_rate = (self.quality["parse_ok"] / total) if total else 0.0
+        valid_rate = (self.quality["validate_ok"] / total) if total else 0.0
+        return {
+            "raw_hits": int(self.quality["raw_hits"]),
+            "parse_ok": int(self.quality["parse_ok"]),
+            "validate_ok": int(self.quality["validate_ok"]),
+            "dedup_hits": int(self.quality["dedup_hits"]),
+            "rejected_fp": int(self.quality["rejected_fp"]),
+            "parse_rate": f"{parse_rate:.1%}",
+            "valid_rate": f"{valid_rate:.1%}",
         }
 
     def _get_runs_dir(self) -> Path:

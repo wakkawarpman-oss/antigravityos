@@ -1,4 +1,4 @@
-.PHONY: prelaunch-gate perf-install perf-unit perf-load perf-load-wrk perf-load-k6 perf-memory perf-stress perf-endurance perf-cpu perf-all perf-report perf-clean perf-files
+.PHONY: prelaunch-gate perf-install perf-unit perf-load perf-load-wrk perf-load-k6 perf-memory perf-stress perf-endurance perf-cpu perf-all perf-report perf-clean perf-files tookie tookie-help grafana-up grafana-down grafana-logs grafana-open osint-tools-install parse-test-full nifi-up nifi-down nifi-logs nifi-open spiderfoot-up spiderfoot-down spiderfoot-logs spiderfoot-local-up spiderfoot-local-down spiderfoot-local-scan spiderfoot-local-batch
 
 PERF_DIR := perf
 PERF_STUB_HOST ?= 127.0.0.1
@@ -12,6 +12,78 @@ prelaunch-gate:
 		exit 2; \
 	fi
 	@./scripts/prelaunch_gate.sh "$(SUMMARY)" $(ARGS)
+
+tookie:
+	@./scripts/tookie.sh $(ARGS)
+
+tookie-help:
+	@./scripts/tookie.sh --help
+
+grafana-up:
+	@docker compose -f docker-compose.grafana.yml up -d
+	@echo "Grafana: http://localhost:3000 (admin/admin)"
+
+grafana-down:
+	@docker compose -f docker-compose.grafana.yml down
+
+grafana-logs:
+	@docker compose -f docker-compose.grafana.yml logs -f --tail=100
+
+grafana-open:
+	@open http://localhost:3000
+
+osint-tools-install:
+	@python3 -m pip install -r requirements.osint-extra.txt
+
+parse-test-full:
+	@bash ./scripts/full_parse_test.sh
+
+nifi-up:
+	@mkdir -p monitoring/nifi/logs
+	@docker compose -f docker-compose.nifi.yml up -d
+	@echo "NiFi: http://localhost:8080/nifi"
+	@echo "Grafana: http://localhost:3001 (admin/admin)"
+
+nifi-down:
+	@docker compose -f docker-compose.nifi.yml down
+
+nifi-logs:
+	@docker compose -f docker-compose.nifi.yml logs -f --tail=120
+
+nifi-open:
+	@open http://localhost:8080/nifi
+
+spiderfoot-up:
+	@docker compose -f docker-compose.spiderfoot.yml up -d
+	@echo "SpiderFoot (via Nginx auth): http://localhost:5001"
+	@echo "Default credentials: admin / hanna"
+
+spiderfoot-down:
+	@docker compose -f docker-compose.spiderfoot.yml down
+
+spiderfoot-logs:
+	@docker compose -f docker-compose.spiderfoot.yml logs -f --tail=120
+
+spiderfoot-local-up:
+	@mkdir -p monitoring/spiderfoot/local-data
+	@docker compose -f docker-compose.spiderfoot.local.yml up -d
+	@echo "SpiderFoot local CLI container is running (no published ports)."
+
+spiderfoot-local-down:
+	@docker compose -f docker-compose.spiderfoot.local.yml down
+
+spiderfoot-local-scan:
+	@TARGET="$(TARGET)" TARGETS="$(TARGETS)" MODULES="$(MODULES)" THREADS="$(THREADS)" OUT_FILE="$(OUT)" DATA_DIR="$(PWD)/monitoring/spiderfoot/local-data" bash ./scripts/spiderfoot_local_scan.sh
+
+spiderfoot-local-batch:
+	@if [ -z "$(TARGETS)" ]; then \
+		echo "usage: make spiderfoot-local-batch TARGETS='example.com 8.8.8.8'"; \
+		exit 2; \
+	fi
+	@for target in $(TARGETS); do \
+		echo "[SpiderFoot batch] $$target"; \
+		TARGET="$$target" MODULES="$(MODULES)" THREADS="$(THREADS)" OUT_FILE="$$target.json" DATA_DIR="$(PWD)/monitoring/spiderfoot/local-data" bash ./scripts/spiderfoot_local_scan.sh; \
+	done
 
 # ========================================
 # PERFORMANCE TOOLS SETUP

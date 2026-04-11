@@ -1,0 +1,60 @@
+{
+  "title": "NiFi Flow Logging - Production",
+  "uid": "nifi-flow-logging-2026",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "NiFi Log Throughput (lines/min)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "targets": [
+        { "refId": "A", "expr": "sum(count_over_time({job=\"nifi\"}[1m]))" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Top Processors by Log Volume (5m)",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "targets": [
+        { "refId": "A", "expr": "topk(10, sum by(processor)(count_over_time({job=\"nifi\"}[5m])))" }
+      ],
+      "transformations": [
+        { "id": "labelsToFields", "options": { "mode": "columns" } }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "logs",
+      "title": "Flow Logs (processor filter)",
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 12 },
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "targets": [
+        { "refId": "A", "expr": "{job=\"nifi\"} |~ \"shodan|censys|opendatabot|LogAttribute|LogMessage\"" }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "DS_LOKI",
+        "type": "datasource",
+        "query": "loki",
+        "current": { "text": "Loki", "value": "Loki" },
+        "hide": 2
+      }
+    ]
+  }
+}

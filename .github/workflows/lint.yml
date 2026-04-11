@@ -1,0 +1,52 @@
+name: Lint And Security
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  lint-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install Python tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install black isort flake8 bandit
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Python format and lint gates
+        run: |
+          black --check src scanners utils preflight.py main.py
+          isort --check-only src scanners utils preflight.py main.py
+          flake8 src scanners utils preflight.py main.py
+
+      - name: Python security gate
+        run: bandit -r src scanners utils preflight.py main.py -f txt
+
+      - name: Node tests gate
+        run: npm test
+
+      - name: Python tests gate
+        run: python -m pytest -q tests/*.py

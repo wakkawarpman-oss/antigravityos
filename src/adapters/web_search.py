@@ -12,11 +12,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime
-from typing import Any, Union, Optional, List, Dict, AsyncIterator
+from typing import Any, Union, Optional, List, Dict, AsyncIterator, Set
 import asyncio
+from pydantic import ValidationError
 
 from adapters.base import ReconAdapter, ReconHit
 from config import REQUIRE_PROXY
+from models.api_schemas import WebSearchResultSchema
 
 log = logging.getLogger("hanna.recon")
 
@@ -190,8 +192,41 @@ class WebSearchAdapter(ReconAdapter):
         try:
             data = json.loads(body)
             organic = data.get("organic_results", [])
-            return [{"url": item.get("link", ""), "title": item.get("title", ""), "snippet": item.get("snippet", "")} for item in organic[:max_results]]
-        except Exception:
+            rows: List[Dict[str, str]] = []
+            for item in organic[:max_results]:
+                try:
+                    validated = WebSearchResultSchema.model_validate(
+                        {
+                            "url": item.get("link", ""),
+                            "title": item.get("title", ""),
+                            "snippet": item.get("snippet", ""),
+                        }
+                    )
+                except ValidationError as exc:
+                    log.warning(
+                        "INVALID_SCHEMA",
+                        extra={
+                            "adapter": self.name,
+                            "target": query,
+                            "error": str(exc),
+                            "error_type": type(exc).__name__,
+                            "stage": "serpapi_item",
+                        },
+                    )
+                    continue
+                rows.append(validated.model_dump())
+            return rows
+        except Exception as exc:
+            log.warning(
+                "ADAPTER_FAIL",
+                extra={
+                    "adapter": self.name,
+                    "target": query,
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                    "stage": "serpapi_parse",
+                },
+            )
             return await self._ddg_search_async(query, max_results)
 
     def _ddg_search(self, query: str, max_results: int = 15) -> List[Dict[str, str]]:
@@ -223,7 +258,23 @@ class WebSearchAdapter(ReconAdapter):
                 continue
             title = re.sub(r"<[^>]+>", "", raw_title).strip()
             snippet = re.sub(r"<[^>]+>", "", snippets[i]).strip() if i < len(snippets) else ""
-            results.append({"url": url, "title": title, "snippet": snippet})
+            try:
+                validated = WebSearchResultSchema.model_validate(
+                    {"url": url, "title": title, "snippet": snippet}
+                )
+            except ValidationError as exc:
+                log.warning(
+                    "INVALID_SCHEMA",
+                    extra={
+                        "adapter": self.name,
+                        "target": "ddg_html",
+                        "error": str(exc),
+                        "error_type": type(exc).__name__,
+                        "stage": "ddg_item",
+                    },
+                )
+                continue
+            results.append(validated.model_dump())
         return results
 
     @staticmethod
@@ -279,8 +330,10 @@ class WebSearchAdapter(ReconAdapter):
             ld_scripts = await page.query_selector_all('script[type="application/ld+json"]')
             ld_data: List[Any] = []
             for script in ld_scripts[:3]:
-                try: ld_data.append(json.loads(await script.inner_text()))
-                except Exception: pass
+                try:
+                    ld_data.append(json.loads(await script.inner_text()))
+                except Exception as exc:
+                    log.debug("web_search json-ld parse failed for %s: %s", url, exc)
             meta["json_ld"] = ld_data
 
             body_text = await page.inner_text("body") or ""
@@ -330,8 +383,8 @@ class WebSearchAdapter(ReconAdapter):
             for script in ld_scripts[:3]:
                 try:
                     ld_data.append(json.loads(script.inner_text()))
-                except (json.JSONDecodeError, Exception):
-                    pass
+                except Exception as exc:
+                    log.debug("web_search json-ld parse failed for %s: %s", url, exc)
             meta["json_ld"] = ld_data
 
             # Text snippet (first 2000 chars of visible text)
@@ -345,8 +398,8 @@ class WebSearchAdapter(ReconAdapter):
             if context:
                 try:
                     context.close()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log.debug("web_search context close failed for %s: %s", url, exc)
         return meta
 
     # ── URL classifier ──

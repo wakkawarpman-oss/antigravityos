@@ -1,0 +1,10 @@
+services:
+  spiderfoot-cli:
+    image: ${SPIDERFOOT_IMAGE:-ctdc/spiderfoot:latest}
+    container_name: hanna-spiderfoot-cli
+    stdin_open: true
+    tty: true
+    working_dir: /data
+    volumes:
+      - ./monitoring/spiderfoot/local-data:/data
+    command: ["sh", "-lc", "sleep infinity"]

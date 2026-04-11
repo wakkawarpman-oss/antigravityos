@@ -18,6 +18,24 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Union, Tuple, List, Dict, AsyncIterator
 
+try:
+    from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+except Exception:  # pragma: no cover
+    def retry(*_args, **_kwargs):
+        def _decorator(func):
+            return func
+
+        return _decorator
+
+    def retry_if_exception_type(*_args, **_kwargs):
+        return None
+
+    def stop_after_attempt(*_args, **_kwargs):
+        return None
+
+    def wait_exponential(*_args, **_kwargs):
+        return None
+
 from config import (
     ADAPTER_FAILURE_THRESHOLD,
     REQUIRE_PROXY,
@@ -27,6 +45,7 @@ from config import (
 )
 
 log = logging.getLogger("hanna.recon")
+ALLOWED_URL_SCHEMES = {"http", "https"}
 
 
 class AdapterExecutionError(RuntimeError):
@@ -63,6 +82,12 @@ class DependencyUnavailableError(AdapterExecutionError):
 
     def __init__(self, detail: str):
         super().__init__(f"dependency unavailable: {detail}")
+
+
+class RateLimitError(AdapterExecutionError):
+    """Raised when upstream responds with rate-limit and call should be retried."""
+
+    error_kind = "rate_limited"
 
 
 # ── Data structures ──────────────────────────────────────────────
@@ -252,10 +277,47 @@ class ReconAdapter(ABC):
             self._is_healthy = False
             log.warning("%s: auto-disabled after %d consecutive failures", self.name, self._consecutive_failures)
 
+    def _validate_url_scheme(self, url: str) -> None:
+        parsed = urllib.parse.urlparse(url)
+        scheme = (parsed.scheme or "").lower()
+        if scheme not in ALLOWED_URL_SCHEMES:
+            raise ValueError(f"Unsupported URL scheme for adapter request: {scheme or '<empty>'}")
+
+    @staticmethod
+    def _rate_limit_delay(attempt: int, headers: Optional[Any] = None) -> float:
+        retry_after = None
+        if headers is not None:
+            try:
+                retry_after = headers.get("Retry-After")
+            except Exception:
+                retry_after = None
+        if retry_after is not None:
+            try:
+                parsed = float(str(retry_after).strip())
+                if parsed > 0:
+                    return min(parsed, RETRY_MAX_DELAY)
+            except (TypeError, ValueError):
+                pass
+        return min(RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5), RETRY_MAX_DELAY)
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(min=1, max=10),
+        retry=retry_if_exception_type(RateLimitError),
+        reraise=True,
+    )
+    def _safe_api_call(self, url: str, headers: Optional[dict] = None) -> Tuple[int, str]:
+        """GET helper that retries on explicit 429 responses."""
+        status, body = self._fetch(url, headers=headers)
+        if status == 429:
+            raise RateLimitError(f"rate limit on {self.name}: {url}")
+        return status, body
+
     def _fetch(self, url: str, headers: Optional[dict] = None) -> Tuple[int, str]:
         """HTTP GET through proxy with retry. Returns (status_code, body)."""
         if not self._is_healthy:
             return 0, ""
+        self._validate_url_scheme(url)
         req = urllib.request.Request(url, headers=headers or {})
         req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; rv:128.0) Gecko/20100101 Firefox/128.0")
         last_status = 0
@@ -264,12 +326,17 @@ class ReconAdapter(ABC):
                 if self._opener:
                     resp = self._opener.open(req, timeout=self.timeout)
                 else:
-                    resp = urllib.request.urlopen(req, timeout=self.timeout)
+                    resp = urllib.request.urlopen(req, timeout=self.timeout)  # nosec B310
                 body = resp.read().decode("utf-8", errors="replace")
                 self._record_success()
                 return resp.status, body
             except urllib.error.HTTPError as e:
                 last_status = e.code
+                if e.code == 429 and attempt < RETRY_MAX_ATTEMPTS - 1:
+                    delay = self._rate_limit_delay(attempt, getattr(e, "headers", None))
+                    log.warning("%s: 429 rate-limit for %s, retrying in %.2fs", self.name, url, delay)
+                    time.sleep(delay)
+                    continue
                 if e.code < 500:
                     self._record_failure()
                     return e.code, ""
@@ -286,6 +353,7 @@ class ReconAdapter(ABC):
         """HTTP POST (JSON body) through proxy with retry. Returns (status_code, body)."""
         if not self._is_healthy:
             return 0, ""
+        self._validate_url_scheme(url)
         payload = json.dumps(data).encode("utf-8")
         hdrs = dict(headers or {})
         hdrs["Content-Type"] = "application/json"
@@ -297,12 +365,17 @@ class ReconAdapter(ABC):
                 if self._opener:
                     resp = self._opener.open(req, timeout=self.timeout)
                 else:
-                    resp = urllib.request.urlopen(req, timeout=self.timeout)
+                    resp = urllib.request.urlopen(req, timeout=self.timeout)  # nosec B310
                 body = resp.read().decode("utf-8", errors="replace")
                 self._record_success()
                 return resp.status, body
             except urllib.error.HTTPError as e:
                 last_status = e.code
+                if e.code == 429 and attempt < RETRY_MAX_ATTEMPTS - 1:
+                    delay = self._rate_limit_delay(attempt, getattr(e, "headers", None))
+                    log.warning("%s: 429 rate-limit for %s, retrying in %.2fs", self.name, url, delay)
+                    time.sleep(delay)
+                    continue
                 if e.code < 500:
                     self._record_failure()
                     return e.code, ""

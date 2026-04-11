@@ -11,6 +11,14 @@ from config import CROSS_CONFIRM_BOOST, TOR_ENABLED, TOR_ROTATION_COOLDOWN_SEC, 
 from worker import ReconTask, TaskResult, _run_adapter_isolated
 
 
+API_COOLDOWN_SEC: dict[str, float] = {
+    "shodan": 60.0,
+    "censys": 30.0,
+    "ua_phone": 120.0,
+    "getcontact": 120.0,
+}
+
+
 @dataclass
 class SchedulerResult:
     all_hits: list[ReconHit] = field(default_factory=list)
@@ -76,9 +84,19 @@ class LaneScheduler:
             pool = ProcessPoolExecutor(max_workers=lane_workers)
             future_map: dict[Future, ReconTask] = {}
             submitted_at: dict[Future, float] = {}
+            last_api_call: dict[str, float] = {}
 
             for task in lane_tasks:
                 plabel = f"P{task.priority}"
+                cooldown = API_COOLDOWN_SEC.get(task.module_name, 0.0)
+                if cooldown > 0:
+                    now = time.monotonic()
+                    last = last_api_call.get(task.module_name, 0.0)
+                    wait_for = cooldown - (now - last)
+                    if wait_for > 0:
+                        print(f"  [{task.module_name}] API cooldown: sleeping {wait_for:.1f}s")
+                        time.sleep(wait_for)
+                    last_api_call[task.module_name] = time.monotonic()
                 print(f"  [{task.module_name}] Queued  ({plabel}, {task.adapter_cls.region.upper()} segment)")
                 LaneScheduler._emit(
                     event_callback,

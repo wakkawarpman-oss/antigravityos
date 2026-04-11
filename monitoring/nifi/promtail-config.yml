@@ -1,0 +1,27 @@
+server:
+  http_listen_port: 9081
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/nifi-positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: nifi
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: nifi
+          host: local
+          __path__: /var/log/nifi/nifi-app*.log
+
+    pipeline_stages:
+      - regex:
+          expression: '^\[(?P<time>[^\]]+)\s+(?P<level>[A-Z]+)\]\s+(?P<logger>\S+)\s+processor=(?P<processor>[^\s]*)\s+flowfile_uuid=(?P<uuid>[^\s]*)\s+(?P<message>.*)$'
+      - labels:
+          level:
+          processor:
+          uuid:
+          logger:

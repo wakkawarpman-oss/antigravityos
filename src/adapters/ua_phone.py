@@ -135,8 +135,18 @@ class UAPhoneAdapter(ReconAdapter):
                         cross_refs=[username] if username else [],
                     )
                 return
-        except Exception:
-            pass
+        except Exception as exc:
+            log.warning(
+                "ADAPTER_FAIL",
+                extra={
+                    "adapter": self.name,
+                    "target": target_name,
+                    "phone": phone,
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                    "stage": "telegram_live_lookup",
+                },
+            )
 
         yield ReconHit(
             observable_type="phone",

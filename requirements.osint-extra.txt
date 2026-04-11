@@ -1,0 +1,14 @@
+# Optional free tooling for extended OSINT ingestion and parsing
+# Install with: python3 -m pip install -r requirements.osint-extra.txt
+
+beautifulsoup4>=4.12.3
+lxml>=5.2.2
+scrapy>=2.11.2
+playwright>=1.52.0
+clickhouse-connect>=0.7.16
+pydantic-settings>=2.3.4
+urlscan-python>=1.0.7
+virustotal3>=1.0.8
+celery>=5.4.0
+redis>=5.0.7
+pybloom-live>=4.0.0

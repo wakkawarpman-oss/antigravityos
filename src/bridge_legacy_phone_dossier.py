@@ -18,6 +18,7 @@ from services.report_renderer import ReportRenderer, strip_ansi, slug, profile_d
 
 ANALYST_ID = "legacy-bridge"
 DEFAULT_API_TOKEN = os.getenv("OSINT_API_TOKEN", "legacy-bridge-local-dev-token")
+ALLOWED_SCHEMES = {"http", "https"}
 
 
 def api_request(base_url: str, method: str, path: str, payload: dict[str, Any] | None = None, api_token: str = DEFAULT_API_TOKEN) -> tuple[int, Any]:
@@ -26,9 +27,13 @@ def api_request(base_url: str, method: str, path: str, payload: dict[str, Any] |
     if payload is not None:
         body = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"
-    request = urllib.request.Request(base_url.rstrip("/") + path, data=body, headers=headers, method=method)
+    url = base_url.rstrip("/") + path
+    parsed_url = urllib.parse.urlparse(url)
+    if (parsed_url.scheme or "").lower() not in ALLOWED_SCHEMES:
+        raise ValueError(f"Disallowed scheme: {parsed_url.scheme}")
+    request = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310
             raw = response.read().decode("utf-8")
             return response.status, json.loads(raw) if raw else None
     except urllib.error.HTTPError as exc:

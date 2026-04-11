@@ -6,6 +6,7 @@ import re
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
+from pydantic import ValidationError
 
 from adapters.base import (
     ReconAdapter,
@@ -14,6 +15,10 @@ from adapters.base import (
     extract_validated_phones,
 )
 from config import MAX_JSONL_LINES, RUNS_ROOT
+from logging_utils import get_logger
+from models.api_schemas import LeakHit
+
+log = get_logger("hanna.recon.ua_leak")
 
 
 class UALeakAdapter(ReconAdapter):
@@ -78,7 +83,15 @@ class UALeakAdapter(ReconAdapter):
                                 continue
                             try:
                                 record = json.loads(line)
-                            except json.JSONDecodeError:
+                            except json.JSONDecodeError as exc:
+                                log.warning(
+                                    "ADAPTER_FAIL",
+                                    adapter=self.name,
+                                    target=target_name,
+                                    error=str(exc),
+                                    stage="ua_leak_jsonl_parse",
+                                    source_file=f"{fpath.name}:L{line_no}",
+                                )
                                 continue
 
                             # Check if record matches target by name or username
@@ -94,12 +107,30 @@ class UALeakAdapter(ReconAdapter):
                             new_phones = [p for p in phones_found if p not in known_set]
 
                             for phone in new_phones:
+                                try:
+                                    validated = LeakHit.model_validate(
+                                        {
+                                            "phone": phone,
+                                            "source_file": f"{fpath.name}:L{line_no}",
+                                            "confidence": 0.6 if name_match else 0.4,
+                                        }
+                                    )
+                                except ValidationError as exc:
+                                    log.warning(
+                                        "INVALID_SCHEMA",
+                                        adapter=self.name,
+                                        target=target_name,
+                                        error=str(exc),
+                                        stage="ua_leak_phone",
+                                        source_file=f"{fpath.name}:L{line_no}",
+                                    )
+                                    continue
                                 hits.append(ReconHit(
                                     observable_type="phone",
-                                    value=phone,
+                                    value=validated.phone or phone,
                                     source_module=self.name,
-                                    source_detail=f"local_leak:{fpath.name}:L{line_no}",
-                                    confidence=0.6 if name_match else 0.4,
+                                    source_detail=f"local_leak:{validated.source_file}",
+                                    confidence=validated.confidence,
                                     raw_record=record,
                                     timestamp=datetime.now().isoformat(),
                                     cross_refs=list(known_set),
@@ -110,12 +141,30 @@ class UALeakAdapter(ReconAdapter):
                             for email in emails:
                                 email = email.lower()
                                 if "noreply" not in email and "example" not in email:
+                                    try:
+                                        validated = LeakHit.model_validate(
+                                            {
+                                                "email": email,
+                                                "source_file": f"{fpath.name}:L{line_no}",
+                                                "confidence": 0.5 if name_match else 0.3,
+                                            }
+                                        )
+                                    except ValidationError as exc:
+                                        log.warning(
+                                            "INVALID_SCHEMA",
+                                            adapter=self.name,
+                                            target=target_name,
+                                            error=str(exc),
+                                            stage="ua_leak_email",
+                                            source_file=f"{fpath.name}:L{line_no}",
+                                        )
+                                        continue
                                     hits.append(ReconHit(
                                         observable_type="email",
-                                        value=email,
+                                        value=validated.email or email,
                                         source_module=self.name,
-                                        source_detail=f"local_leak:{fpath.name}:L{line_no}",
-                                        confidence=0.5 if name_match else 0.3,
+                                        source_detail=f"local_leak:{validated.source_file}",
+                                        confidence=validated.confidence,
                                         raw_record=record,
                                         timestamp=datetime.now().isoformat(),
                                     ))

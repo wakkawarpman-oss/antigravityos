@@ -73,6 +73,8 @@
     "test:contract": "npm test && python3 -m pytest -q tests/*.py",
     "health": "curl -fsS http://localhost:3000/metrics >/dev/null",
     "hanna": "./scripts/hanna.sh start",
+    "tookie": "bash ./scripts/tookie.sh",
+    "tookie:help": "bash ./scripts/tookie.sh --help",
     "security": "npm audit --omit=dev && npm test",
     "release": "npm test && npm run security && npm version patch"
   },

@@ -59,6 +59,75 @@ source .venv/bin/activate
 ./scripts/hanna pf
 ```
 
+## preflight.py Configuration Check
+
+Detailed guide: [docs/PREFLIGHT_GUIDE.md](docs/PREFLIGHT_GUIDE.md)
+
+`preflight.py` automatically validates required configuration keys and API keys from `.env`.
+
+### How it works
+
+The script uses `python-dotenv` to load values from `.env` into `os.environ`.
+
+- No manual export in terminal is required.
+- Values are read directly from the project root `.env` file.
+
+### Setup
+
+1. Install dependency:
+
+```bash
+pip install python-dotenv
+```
+
+2. Ensure `.env` exists in the project root.
+
+3. Example generic keys for app/runtime environments:
+
+```ini
+API_KEY=sk_abc123xyz
+DATABASE_URL=postgresql://localhost:5432/mydb
+DEBUG=True
+PORT=8000
+SECRET_KEY=secret_123456
+REDIS_URL=redis://localhost:6379
+JWT_SECRET=jwt_secret_789
+S3_BUCKET=my-s3-bucket
+EMAIL_SERVICE=smtp
+```
+
+4. Run:
+
+```bash
+python3 preflight.py
+```
+
+### Output
+
+The script prints summary counters:
+
+- `active_keys`: number of keys with non-empty values.
+- `warning_keys`: number of missing/empty keys.
+
+### Multiple environments
+
+For separate environments, keep dedicated files:
+
+- `.env.dev` for development
+- `.env.prod` for production
+
+If needed, load a specific file in code:
+
+```python
+load_dotenv(".env.prod")
+```
+
+### Operational notes
+
+- Run `preflight.py` before deploy or scheduled jobs.
+- Keep secrets only in env files or secret managers.
+- Consider adding JSON output mode for CI/CD integrations.
+
 ## TUI Quick Start
 
 ```bash
@@ -151,6 +220,10 @@ Stress testing suite:
 npm run stress:all
 npm run stress:report
 ```
+
+Performance testing standard:
+
+- [docs/PERFORMANCE_TESTING_PLAN.md](docs/PERFORMANCE_TESTING_PLAN.md)
 
 Optional heavy scenarios:
 

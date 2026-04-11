@@ -8,8 +8,15 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 from typing import Optional, Any, Union, List, Dict
+from pydantic import ValidationError
 
 from adapters.base import ReconAdapter, ReconHit
+from logging_utils import get_logger
+from models.api_schemas import CensysSearchResponseSchema
+
+
+ALLOWED_SCHEMES = {"http", "https"}
+log = get_logger("hanna.recon.censys")
 
 
 class CensysAdapter(ReconAdapter):
@@ -45,8 +52,12 @@ class CensysAdapter(ReconAdapter):
 
     def _request(self, path: str, payload: dict, api_id: str, api_secret: str) -> Optional[dict]:
         data = json.dumps(payload).encode("utf-8")
+        url = f"{self._API_BASE}{path}"
+        parsed_url = urllib.parse.urlparse(url)
+        if (parsed_url.scheme or "").lower() not in ALLOWED_SCHEMES:
+            raise ValueError(f"Disallowed scheme: {parsed_url.scheme}")
         req = urllib.request.Request(
-            f"{self._API_BASE}{path}",
+            url,
             data=data,
             headers={
                 "Content-Type": "application/json",
@@ -59,7 +70,7 @@ class CensysAdapter(ReconAdapter):
         import base64
         req.add_header("Authorization", f"Basic {base64.b64encode(auth).decode('ascii')}")
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout * 2) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout * 2) as resp:  # nosec B310
                 body = resp.read().decode("utf-8", errors="replace")
                 return json.loads(body)
         except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, TimeoutError):
@@ -70,8 +81,19 @@ class CensysAdapter(ReconAdapter):
         data = self._request("/hosts/search", payload, api_id, api_secret)
         if not data:
             return []
+        try:
+            parsed = CensysSearchResponseSchema.model_validate(data)
+        except ValidationError as exc:
+            log.warning(
+                "INVALID_SCHEMA",
+                adapter=self.name,
+                target=query,
+                error=str(exc),
+                stage="censys_hosts_response",
+            )
+            return []
         hits: list[ReconHit] = []
-        for item in data.get("result", {}).get("hits", []):
+        for item in parsed.result.hits:
             ip = item.get("ip") or ""
             name = item.get("name") or query
             services = item.get("services", [])
@@ -93,8 +115,19 @@ class CensysAdapter(ReconAdapter):
         data = self._request("/certificates/search", payload, api_id, api_secret)
         if not data:
             return []
+        try:
+            parsed_data = CensysSearchResponseSchema.model_validate(data)
+        except ValidationError as exc:
+            log.warning(
+                "INVALID_SCHEMA",
+                adapter=self.name,
+                target=query,
+                error=str(exc),
+                stage="censys_certs_response",
+            )
+            return []
         hits: list[ReconHit] = []
-        for item in data.get("result", {}).get("hits", []):
+        for item in parsed_data.result.hits:
             names = item.get("names") or []
             parsed = item.get("parsed", {})
             subject = parsed.get("subject_dn", query)

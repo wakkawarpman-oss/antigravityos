@@ -4,9 +4,14 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
+from pydantic import ValidationError
 
 from adapters.base import ReconAdapter, ReconHit
 from adapters.cli_common import run_cli
+from logging_utils import get_logger
+from models.api_schemas import ShodanResponseSchema
+
+log = get_logger("hanna.recon.shodan")
 
 
 class ShodanAdapter(ReconAdapter):
@@ -44,19 +49,32 @@ class ShodanAdapter(ReconAdapter):
             data = json.loads(output)
         except json.JSONDecodeError:
             return []
+        try:
+            parsed = ShodanResponseSchema.model_validate(data)
+        except ValidationError as exc:
+            log.warning(
+                "INVALID_SCHEMA",
+                adapter=self.name,
+                target=target,
+                error=str(exc),
+                stage="shodan_response",
+            )
+            return []
 
         hits: list[ReconHit] = []
-        for item in data.get("data", []):
-            port = item.get("port")
-            product = item.get("product") or item.get("_shodan", {}).get("module", "")
-            vulns = item.get("vulns") or []
+        for item in parsed.data:
+            if item.port is None:
+                continue
+            product = item.product or item.shodan_meta.get("module", "")
+            vulns = item.vulns or []
+            raw_record = item.model_dump(by_alias=True)
             hits.append(ReconHit(
                 observable_type="infrastructure",
-                value=f"{target}:{port} {product}".strip(),
+                value=f"{target}:{item.port} {product}".strip(),
                 source_module=self.name,
-                source_detail=f"shodan:port:{port}",
+                source_detail=f"shodan:port:{item.port}",
                 confidence=0.75,
-                raw_record=item,
+                raw_record=raw_record,
                 timestamp=datetime.now().isoformat(),
                 cross_refs=[target] + list(vulns)[:5],
             ))

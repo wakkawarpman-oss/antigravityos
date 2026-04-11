@@ -20,6 +20,8 @@ from typing import Any, Optional, Union, List, Dict
 
 import urllib.request
 import urllib.error
+from cryptography.hazmat.primitives.ciphers import algorithms
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 log = logging.getLogger("hanna.recon.getcontact")
 
@@ -32,44 +34,40 @@ _ANDROID_OS = "android 11"
 _DEVICE_ID = os.getenv("GETCONTACT_DEVICE_ID", "8edbe110a4079830")
 _COUNTRY = "UA"
 
-_HMAC_KEY = b'2Wq7)qkX~cp7)H|n_tc&o+:G_USN3/-uIi~>M+c ;Oq]E{t9)RC_5|lhAA_Qq%_4'
+_HMAC_KEY = os.getenv("GETCONTACT_HMAC_KEY", "").encode("utf-8")
 
 
 # ── AES cipher (ECB, PKCS7 padding) ─────────────────────────────
 
 class _AESCipher:
-    """AES-ECB encrypt/decrypt for GetContact wire protocol."""
+    """AES-GCM helper for GetContact protocol."""
 
     def __init__(self, hex_key: str) -> None:
-        from Crypto.Cipher import AES as _AES  # type: ignore[import-untyped]
-        self._bs = _AES.block_size
         self._key = binascii.unhexlify(hex_key)
+        if len(self._key) not in (16, 24, 32):
+            raise ValueError("AES key must be 16, 24, or 32 bytes")
 
     def encrypt(self, plaintext: str) -> bytes:
-        from Crypto.Cipher import AES as _AES
-        padded = self._pad(plaintext)
-        cipher = _AES.new(self._key, _AES.MODE_ECB)
-        return base64.b64encode(cipher.encrypt(padded.encode("utf-8")))
+        nonce = os.urandom(12)
+        aesgcm = AESGCM(self._key)
+        encrypted = aesgcm.encrypt(nonce, plaintext.encode("utf-8"), None)
+        return base64.b64encode(nonce + encrypted)
 
     def decrypt(self, ciphertext: str) -> str:
-        from Crypto.Cipher import AES as _AES
         raw = base64.b64decode(ciphertext)
-        cipher = _AES.new(self._key, _AES.MODE_ECB)
-        return self._unpad(cipher.decrypt(raw)).decode("utf-8")
-
-    def _pad(self, s: str) -> str:
-        pad_len = self._bs - (len(s) % self._bs)
-        return s + chr(pad_len) * pad_len
-
-    @staticmethod
-    def _unpad(s: bytes) -> bytes:
-        return s[: -s[-1]]
+        if len(raw) < 13:
+            raise ValueError("Invalid ciphertext payload")
+        nonce, encrypted = raw[:12], raw[12:]
+        aesgcm = AESGCM(self._key)
+        return aesgcm.decrypt(nonce, encrypted, None).decode("utf-8")
 
 
 # ── Signature helper ─────────────────────────────────────────────
 
 def _sign(timestamp: str, body_json: str) -> str:
     """HMAC-SHA256 signature as required by GetContact API."""
+    if not _HMAC_KEY:
+        raise ValueError("GETCONTACT_HMAC_KEY is required")
     message = f"{timestamp}-{body_json}"
     sig = hmac.new(_HMAC_KEY, message.encode("utf-8"), hashlib.sha256).digest()
     return base64.b64encode(sig).decode("utf-8")
@@ -194,7 +192,7 @@ class GetContactClient:
 
         req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
         try:
-            resp = urllib.request.urlopen(req, timeout=self._timeout)
+            resp = urllib.request.urlopen(req, timeout=self._timeout)  # nosec B310
             raw_body = resp.read().decode("utf-8")
             resp_data = json.loads(raw_body)
             decrypted = self._aes.decrypt(resp_data["data"])

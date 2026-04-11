@@ -2,11 +2,17 @@
 from __future__ import annotations
 
 import os
-import xml.etree.ElementTree as ET
 from datetime import datetime
+
+from defusedxml import ElementTree as ET
+from pydantic import ValidationError
 
 from adapters.base import ReconAdapter, ReconHit
 from adapters.cli_common import run_cli
+from logging_utils import get_logger
+from models.api_schemas import NmapServiceSchema
+
+log = get_logger("hanna.recon.nmap")
 
 
 class NmapAdapter(ReconAdapter):
@@ -62,14 +68,32 @@ class NmapAdapter(ReconAdapter):
                 service = port.find("service")
                 product = service.attrib.get("product", "") if service is not None else ""
                 version = service.attrib.get("version", "") if service is not None else ""
+                try:
+                    validated = NmapServiceSchema.model_validate(
+                        {
+                            "address": address,
+                            "port": int(portid),
+                            "product": product,
+                            "version": version,
+                        }
+                    )
+                except (ValidationError, ValueError) as exc:
+                    log.warning(
+                        "INVALID_SCHEMA",
+                        adapter=self.name,
+                        target=target,
+                        error=str(exc),
+                        stage="nmap_service_record",
+                    )
+                    continue
                 extra = " ".join(v for v in [product, version] if v).strip()
                 hits.append(ReconHit(
                     observable_type="infrastructure",
-                    value=f"{address}:{portid} {extra}".strip(),
+                    value=f"{validated.address}:{validated.port} {extra}".strip(),
                     source_module=self.name,
-                    source_detail=f"nmap:service:{portid}",
+                    source_detail=f"nmap:service:{validated.port}",
                     confidence=0.82,
-                    raw_record={"target": target, "port": portid, "product": product, "version": version},
+                    raw_record={"target": target, "port": validated.port, "product": validated.product, "version": validated.version},
                     timestamp=datetime.now().isoformat(),
                     cross_refs=[target],
                 ))

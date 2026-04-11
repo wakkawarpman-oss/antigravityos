@@ -98,16 +98,16 @@ class ReconNGAdapter(ReconAdapter):
         except sqlite3.Error:
             return hits
         try:
-            for table, obs_type, field in [
-                ("hosts", "infrastructure", "host"),
-                ("contacts", "email", "email"),
-                ("profiles", "url", "url"),
+            for select_sql, pragma_sql, obs_type, field in [
+                ("SELECT * FROM hosts LIMIT 20", "PRAGMA table_info(hosts)", "infrastructure", "host"),
+                ("SELECT * FROM contacts LIMIT 20", "PRAGMA table_info(contacts)", "email", "email"),
+                ("SELECT * FROM profiles LIMIT 20", "PRAGMA table_info(profiles)", "url", "url"),
             ]:
                 try:
-                    rows = db.execute(f"SELECT * FROM {table} LIMIT 20").fetchall()
+                    rows = db.execute(select_sql).fetchall()
                 except sqlite3.Error:
                     continue
-                cols = [c[1] for c in db.execute(f"PRAGMA table_info({table})").fetchall()]
+                cols = [c[1] for c in db.execute(pragma_sql).fetchall()]
                 for row in rows:
                     record = dict(zip(cols, row))
                     value = record.get(field) or record.get("username") or record.get("email") or record.get("host")
@@ -117,7 +117,7 @@ class ReconNGAdapter(ReconAdapter):
                         observable_type=obs_type,
                         value=str(value),
                         source_module=self.name,
-                        source_detail=f"reconng:{table}",
+                        source_detail=f"reconng:{field}",
                         confidence=0.5,
                         raw_record=record,
                         timestamp=datetime.now().isoformat(),

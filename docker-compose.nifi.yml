@@ -1,0 +1,52 @@
+services:
+  nifi:
+    image: apache/nifi:2.0.0-M4
+    container_name: hanna-nifi
+    ports:
+      - "8080:8080"
+    environment:
+      - NIFI_WEB_HTTP_PORT=8080
+      - SINGLE_USER_CREDENTIALS_USERNAME=admin
+      - SINGLE_USER_CREDENTIALS_PASSWORD=adminadminadmin
+      - NIFI_LOG_DIR=/opt/nifi/nifi-current/logs
+      - NIFI_JVM_HEAP_INIT=1g
+      - NIFI_JVM_HEAP_MAX=2g
+    volumes:
+      - ./monitoring/nifi/conf/logback.xml:/opt/nifi/nifi-current/conf/logback.xml:ro
+      - ./monitoring/nifi/conf/nifi.properties:/opt/nifi/nifi-current/conf/nifi.properties:ro
+      - ./monitoring/nifi/logs:/opt/nifi/nifi-current/logs
+
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: hanna-nifi-loki
+    ports:
+      - "3101:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+
+  promtail:
+    image: grafana/promtail:3.1.1
+    container_name: hanna-nifi-promtail
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./monitoring/nifi/promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./monitoring/nifi/logs:/var/log/nifi:ro
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: hanna-nifi-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - nifi_grafana_data:/var/lib/grafana
+    depends_on:
+      - loki
+
+volumes:
+  nifi_grafana_data:

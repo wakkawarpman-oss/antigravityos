@@ -1,15 +1,19 @@
 """GHuntAdapter — Google account reconnaissance."""
 from __future__ import annotations
 
-import json
 import os
 import re
 import urllib.parse
 from datetime import datetime
 from typing import Optional, List, Dict
+from pydantic import ValidationError
 
 from adapters.base import DependencyUnavailableError, MissingBinaryError, ReconAdapter, ReconHit, extract_validated_phones
 from adapters.cli_common import run_cli
+from logging_utils import get_logger
+from models.api_schemas import GhuntProfile
+
+log = get_logger("hanna.recon.ghunt")
 
 
 class GHuntAdapter(ReconAdapter):
@@ -80,6 +84,31 @@ class GHuntAdapter(ReconAdapter):
         """Parse GHunt text output for actionable intelligence."""
         hits: list[ReconHit] = []
         raw = {"email": email, "output_preview": output[:2000]}
+
+        gaia_match = re.search(r"(?:gaia\s*id|gaia_id)\s*[:=]\s*([0-9]{8,})", output, re.IGNORECASE)
+        name_match = re.search(r"(?:display\s*name|name)\s*[:=]\s*([^\n\r]{2,120})", output, re.IGNORECASE)
+        photo_match = re.search(r"(https://lh3\.googleusercontent\.com/[^\s\"']+)", output, re.IGNORECASE)
+        phone_match = extract_validated_phones(output)
+
+        if gaia_match:
+            profile_candidate = {
+                "gaia_id": gaia_match.group(1).strip(),
+                "email": email,
+                "phone": phone_match[0] if phone_match else None,
+                "display_name": name_match.group(1).strip() if name_match else None,
+                "profile_photo_url": photo_match.group(1).strip() if photo_match else None,
+            }
+            try:
+                profile = GhuntProfile.model_validate(profile_candidate)
+                raw["ghunt_profile"] = profile.model_dump(exclude_none=True)
+            except ValidationError as exc:
+                log.warning(
+                    "INVALID_SCHEMA",
+                    adapter=self.name,
+                    target=email,
+                    error=str(exc),
+                    stage="ghunt_profile",
+                )
 
         # Look for Google Maps profile
         maps_match = re.search(r'(https://www\.google\.com/maps/contrib/\d+)', output)

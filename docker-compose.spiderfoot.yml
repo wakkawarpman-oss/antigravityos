@@ -1,0 +1,40 @@
+services:
+  spiderfoot:
+    image: ${SPIDERFOOT_IMAGE:-ctdc/spiderfoot:latest}
+    container_name: hanna-spiderfoot
+    expose:
+      - "5001"
+    volumes:
+      - spiderfoot_data:/data
+    networks:
+      - sf-internal
+
+  redis:
+    image: redis:7-alpine
+    container_name: hanna-spiderfoot-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - spiderfoot_redis:/data
+    networks:
+      - sf-internal
+
+  nginx:
+    image: nginx:alpine
+    container_name: hanna-spiderfoot-nginx
+    ports:
+      - "127.0.0.1:5001:5001"
+    volumes:
+      - ./monitoring/spiderfoot/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./monitoring/spiderfoot/nginx/.htpasswd:/etc/nginx/.htpasswd:ro
+    depends_on:
+      - spiderfoot
+    networks:
+      - sf-internal
+
+networks:
+  sf-internal:
+    internal: true
+
+volumes:
+  spiderfoot_data:
+  spiderfoot_redis:

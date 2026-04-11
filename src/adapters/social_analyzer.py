@@ -8,9 +8,12 @@ import asyncio
 import urllib.parse
 from datetime import datetime
 from typing import Optional, List, Dict, AsyncIterator
+import logging
 
 from adapters.base import DependencyUnavailableError, MissingBinaryError, ReconAdapter, ReconHit
 from adapters.cli_common import run_cli
+
+log = logging.getLogger("hanna.recon.social_analyzer")
 
 
 class SocialAnalyzerAdapter(ReconAdapter):
@@ -102,8 +105,17 @@ class SocialAnalyzerAdapter(ReconAdapter):
                             raw_record=profile,
                             cross_refs=[username],
                         ))
-        except (json.JSONDecodeError, TypeError):
-            pass
+        except (json.JSONDecodeError, TypeError) as exc:
+            log.warning(
+                "ADAPTER_FAIL",
+                extra={
+                    "adapter": self.name,
+                    "target": username,
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                    "stage": "parse_sa_output",
+                },
+            )
         return hits[:50]
 
     async def _fallback_platform_checks_async(self, username: str) -> AsyncIterator[ReconHit]:
@@ -142,7 +154,17 @@ class SocialAnalyzerAdapter(ReconAdapter):
                         raw_record={"username": username, "platform": platform},
                         cross_refs=[username],
                     )
-            except Exception: pass
+            except Exception as exc:
+                log.warning(
+                    "ADAPTER_FAIL",
+                    extra={
+                        "adapter": self.name,
+                        "target": username,
+                        "error": str(exc),
+                        "error_type": type(exc).__name__,
+                        "stage": f"direct_check:{platform}",
+                    },
+                )
             return None
 
         # Execute all checks concurrently

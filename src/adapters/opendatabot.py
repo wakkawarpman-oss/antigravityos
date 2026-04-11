@@ -8,9 +8,11 @@ import re
 import urllib.parse
 from datetime import datetime
 from typing import Any, Union, Optional, List, Dict
+from pydantic import ValidationError
 
 from adapters.base import ReconAdapter, ReconHit, extract_validated_phones
 from config import REQUIRE_PROXY
+from models.api_schemas import OpenDataBotEntitySchema
 
 log = logging.getLogger("hanna.recon")
 
@@ -64,6 +66,21 @@ class OpenDataBotAdapter(ReconAdapter):
                 if enriched:
                     ent.update(enriched)
 
+            try:
+                ent = OpenDataBotEntitySchema.model_validate(ent).model_dump(exclude_none=True)
+            except ValidationError as exc:
+                log.warning(
+                    "INVALID_SCHEMA",
+                    extra={
+                        "adapter": self.name,
+                        "target": target_name,
+                        "error": str(exc),
+                        "error_type": type(exc).__name__,
+                        "stage": "opendatabot_entity",
+                    },
+                )
+                continue
+
             hit = self._entity_to_hit(ent, target_name, known_phones)
             if hit:
                 hits.append(hit)
@@ -105,8 +122,17 @@ class OpenDataBotAdapter(ReconAdapter):
                 page.wait_for_timeout(2000)  # give Vue/Nuxt hydration time
                 body = page.content()
                 browser.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            log.warning(
+                "ADAPTER_FAIL",
+                extra={
+                    "adapter": self.name,
+                    "target": query,
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                    "stage": "playwright_web_search",
+                },
+            )
 
         entities = self._parse_search_html(body, query) if body else []
 
