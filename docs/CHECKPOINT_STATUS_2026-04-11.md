@@ -91,3 +91,7 @@ Source: `.cache/stress_test_report.json`
 - Added explicit process-lifecycle acceptance evaluator for timeout cleanup invariants and thresholds.
 - Added burst regression test (25 timeout events) that validates cleanup metrics: attempts, successes, failures, and success ratio.
 - Integrated this burst acceptance check into `tests/test_adapter_capability_matrix.py`, so it runs in the targeted release-guard test pack.
+
+## Master Plan Execution Update (Lifecycle telemetry in runner artifacts)
+- Aggregate, chain, and manual runners now reset process-lifecycle counters at run start and attach lifecycle metrics into `RunResult.extra.process_lifecycle`.
+- Added regression assertions in runner test suites to ensure lifecycle telemetry is present and shape-stable in result metadata.

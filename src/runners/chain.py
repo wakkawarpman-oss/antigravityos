@@ -24,6 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 from adapters.base import ReconHit
+from adapters.cli_common import get_process_lifecycle_stats, reset_process_lifecycle_stats
 from config import DEFAULT_DB_PATH, RUNS_ROOT
 from models import AdapterOutcome, RunResult
 from registry import resolve_modules
@@ -70,6 +71,7 @@ class ChainRunner:
     ) -> RunResult:
         from discovery_engine import DiscoveryEngine
 
+        reset_process_lifecycle_stats()
         started = datetime.now().isoformat()
         exports = Path(exports_dir) if exports_dir else RUNS_ROOT / "exports"
 
@@ -155,5 +157,6 @@ class ChainRunner:
                 "output_path": output_path,
                 "report_mode": report_mode,
                 "stats": engine.get_stats(),
+                "process_lifecycle": get_process_lifecycle_stats(),
             },
         )

@@ -18,6 +18,7 @@ import time
 from datetime import datetime
 
 from adapters.base import AdapterExecutionError, ReconHit
+from adapters.cli_common import get_process_lifecycle_stats, reset_process_lifecycle_stats
 from models import AdapterOutcome, RunResult
 from registry import MODULES, MODULE_LANE
 
@@ -44,13 +45,17 @@ class ManualRunner:
     ) -> RunResult:
         known_phones = known_phones or []
         known_usernames = known_usernames or []
+        reset_process_lifecycle_stats()
 
         adapter_cls = MODULES.get(module_name)
         if not adapter_cls:
             return RunResult(
                 target_name=target_name,
                 mode="manual",
-                extra={"queued_modules": [module_name]},
+                extra={
+                    "queued_modules": [module_name],
+                    "process_lifecycle": get_process_lifecycle_stats(),
+                },
                 errors=[{"module": module_name, "error": f"Unknown module: {module_name}", "error_kind": "unknown_module"}],
                 started_at=datetime.now().isoformat(),
                 finished_at=datetime.now().isoformat(),
@@ -85,7 +90,10 @@ class ManualRunner:
                 new_emails=sorted({h.value for h in hits if h.observable_type == "email" and h.confidence > 0}),
                 started_at=started,
                 finished_at=datetime.now().isoformat(),
-                extra={"queued_modules": [module_name]},
+                extra={
+                    "queued_modules": [module_name],
+                    "process_lifecycle": get_process_lifecycle_stats(),
+                },
             )
         except AdapterExecutionError as exc:
             elapsed = time.monotonic() - t0
@@ -101,7 +109,10 @@ class ManualRunner:
                 errors=[{"module": module_name, "error": str(exc), "error_kind": getattr(exc, "error_kind", "adapter_error")}],
                 started_at=started,
                 finished_at=datetime.now().isoformat(),
-                extra={"queued_modules": [module_name]},
+                extra={
+                    "queued_modules": [module_name],
+                    "process_lifecycle": get_process_lifecycle_stats(),
+                },
             )
         except Exception as exc:
             elapsed = time.monotonic() - t0
@@ -117,7 +128,10 @@ class ManualRunner:
                 errors=[{"module": module_name, "error": str(exc), "error_kind": "adapter_error"}],
                 started_at=started,
                 finished_at=datetime.now().isoformat(),
-                extra={"queued_modules": [module_name]},
+                extra={
+                    "queued_modules": [module_name],
+                    "process_lifecycle": get_process_lifecycle_stats(),
+                },
             )
 
     @staticmethod

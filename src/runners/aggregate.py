@@ -20,6 +20,7 @@ from datetime import datetime
 from pathlib import Path
 
 from adapters.base import ReconHit
+from adapters.cli_common import get_process_lifecycle_stats, reset_process_lifecycle_stats
 from config import RUNS_ROOT
 from models import AdapterOutcome, RunResult
 from registry import resolve_modules
@@ -54,6 +55,7 @@ class AggregateRunner:
     ) -> RunResult:
         known_phones = known_phones or []
         known_usernames = known_usernames or []
+        reset_process_lifecycle_stats()
         module_names = resolve_modules(modules)
 
         tasks, errors = build_tasks(
@@ -98,5 +100,8 @@ class AggregateRunner:
             errors=errors,
             started_at=started,
             finished_at=datetime.now().isoformat(),
-            extra={"queued_modules": module_names},
+            extra={
+                "queued_modules": module_names,
+                "process_lifecycle": get_process_lifecycle_stats(),
+            },
         )

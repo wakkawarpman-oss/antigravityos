@@ -24,6 +24,7 @@ def test_aggregate_runner_dedup_and_cross_confirm(monkeypatch):
     )
 
     monkeypatch.setattr(aggregate_mod, "build_tasks", lambda *args, **kwargs: ([], []))
+    monkeypatch.setattr(aggregate_mod, "resolve_modules", lambda modules=None: list(modules or []))
     async def _fake_run_tasks(self, tasks, label=""):
         self.modules_run = ["mod_a", "mod_b"]
         self.errors = []
@@ -46,6 +47,7 @@ def test_aggregate_runner_runtime_summary_tracks_timeouts(monkeypatch):
     import runners.aggregate as aggregate_mod
 
     monkeypatch.setattr(aggregate_mod, "build_tasks", lambda *args, **kwargs: ([], []))
+    monkeypatch.setattr(aggregate_mod, "resolve_modules", lambda modules=None: list(modules or []))
     async def _fake_run_tasks(self, tasks, label=""):
         self.modules_run = ["mod_timeout"]
         self.errors = [{"module": "mod_timeout", "error": "TIMEOUT (60s)", "error_kind": "timeout"}]
@@ -71,3 +73,8 @@ def test_aggregate_runner_runtime_summary_tracks_timeouts(monkeypatch):
     assert summary["queued"] == 1
     assert summary["timed_out"] == 1
     assert summary["failed"] == 0
+    lifecycle = result.extra.get("process_lifecycle", {})
+    assert lifecycle.get("timeout_events", 0) >= 0
+    assert lifecycle.get("kill_attempted", 0) >= 0
+    assert lifecycle.get("kill_succeeded", 0) >= 0
+    assert lifecycle.get("kill_failed", 0) >= 0

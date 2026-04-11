@@ -134,6 +134,9 @@ def test_chain_runner_exposes_runtime_summary(monkeypatch, tmp_path):
     assert summary["completed"] == 1
     assert summary["skipped_missing_credentials"] == 1
     assert summary["report_mode"] == "strict"
+    lifecycle = result.extra.get("process_lifecycle", {})
+    assert lifecycle.get("timeout_events", 0) >= 0
+    assert lifecycle.get("kill_attempted", 0) >= 0
 
 
 def test_chain_runner_handles_none_clusters(monkeypatch, tmp_path):
