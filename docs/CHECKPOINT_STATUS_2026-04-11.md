@@ -66,3 +66,8 @@ Source: `.cache/stress_test_report.json`
 - CLI path now surfaces module-resolution errors as parser-level actionable feedback.
 - Added resolver regression tests for unknown module/preset handling.
 - Added cross-export parity regression test to enforce observed-data consistency between runtime JSON and STIX artifacts inside ZIP evidence packs.
+
+## Master Plan Execution Update (Process lifecycle observability)
+- Added process-lifecycle counters for CLI timeout handling: `timeout_events`, `kill_attempted`, `kill_succeeded`, `kill_failed`.
+- Timeout cleanup now emits explicit stderr marker when process-group kill fails (`[timeout][kill_failed]`) to improve postmortem visibility.
+- Added dedicated regression tests for process-group kill success/failure and timeout marker behavior.

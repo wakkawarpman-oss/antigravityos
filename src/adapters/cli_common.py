@@ -24,6 +24,23 @@ COMMON_BIN_DIRS: tuple[str, ...] = (
 )
 
 
+_PROCESS_LIFECYCLE_STATS: dict[str, int] = {
+    "timeout_events": 0,
+    "kill_attempted": 0,
+    "kill_succeeded": 0,
+    "kill_failed": 0,
+}
+
+
+def reset_process_lifecycle_stats() -> None:
+    for key in _PROCESS_LIFECYCLE_STATS:
+        _PROCESS_LIFECYCLE_STATS[key] = 0
+
+
+def get_process_lifecycle_stats() -> dict[str, int]:
+    return dict(_PROCESS_LIFECYCLE_STATS)
+
+
 def _augment_path(path_value: Optional[str]) -> str:
     """Append common user-level binary directories to PATH if missing."""
     parts = [p for p in (path_value or "").split(":") if p]
@@ -52,14 +69,19 @@ def resolve_cli_timeout(module_name: str, adapter_timeout: float, multiplier: fl
     return max(1.0, min(desired, worker_timeout - float(CLI_TIMEOUT_SAFETY_MARGIN)))
 
 
-def kill_process_group(exc: subprocess.TimeoutExpired) -> None:
+def kill_process_group(exc: subprocess.TimeoutExpired) -> bool:
     """Kill the entire process group spawned by a timed-out subprocess."""
+    _PROCESS_LIFECYCLE_STATS["kill_attempted"] += 1
     try:
         pid = getattr(exc, "pid", None)
         if pid:
             os.killpg(os.getpgid(pid), signal.SIGKILL)
+            _PROCESS_LIFECYCLE_STATS["kill_succeeded"] += 1
+            return True
     except (OSError, ProcessLookupError) as exc:
         log.debug("failed to kill timed-out process group: %s", exc)
+    _PROCESS_LIFECYCLE_STATS["kill_failed"] += 1
+    return False
 
 
 def run_cli(
@@ -105,12 +127,16 @@ def run_cli(
             env=final_env,
         )
     except subprocess.TimeoutExpired as exc:
-        kill_process_group(exc)
+        _PROCESS_LIFECYCLE_STATS["timeout_events"] += 1
+        killed = kill_process_group(exc)
+        timeout_marker = "\n[timeout]"
+        if not killed:
+            timeout_marker += "[kill_failed]"
         return subprocess.CompletedProcess(
             args=final_cmd,
             returncode=124,
             stdout=exc.stdout or "",
-            stderr=((exc.stderr or "") + "\n[timeout]"),
+            stderr=((exc.stderr or "") + timeout_marker),
         )
     except FileNotFoundError as exc:
         raise MissingBinaryError(final_cmd[0] if final_cmd else "unknown") from exc
