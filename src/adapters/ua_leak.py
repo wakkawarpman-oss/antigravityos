@@ -94,8 +94,21 @@ class UALeakAdapter(ReconAdapter):
                                 )
                                 continue
 
+                            # Build searchable text from high-signal keys first, then fallback to full JSON.
+                            if isinstance(record, dict):
+                                key_fields = [
+                                    str(record.get("name", "")),
+                                    str(record.get("full_name", "")),
+                                    str(record.get("username", "")),
+                                    str(record.get("email", "")),
+                                    str(record.get("phone", "")),
+                                    str(record.get("city", "")),
+                                ]
+                                record_text = (" ".join(key_fields) + " " + json.dumps(record, ensure_ascii=False)).lower()
+                            else:
+                                record_text = json.dumps(record, ensure_ascii=False).lower()
+
                             # Check if record matches target by name or username
-                            record_text = json.dumps(record, ensure_ascii=False).lower()
                             name_match = all(part in record_text for part in name_parts)
                             username_match = any(u.lower() in record_text for u in known_usernames)
 
@@ -168,7 +181,13 @@ class UALeakAdapter(ReconAdapter):
                                         raw_record=record,
                                         timestamp=datetime.now().isoformat(),
                                     ))
-                except (OSError, PermissionError):
+                except (OSError, PermissionError) as exc:
+                    log.warning(
+                        "LEAK_FILE_READ_ERROR",
+                        adapter=self.name,
+                        error=str(exc),
+                        source_file=str(fpath),
+                    )
                     continue
 
         return hits

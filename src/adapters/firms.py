@@ -80,8 +80,8 @@ class FIRMSAdapter(ReconAdapter):
         if lat_s and lon_s:
             try:
                 coords.append((float(lat_s), float(lon_s), "env_override"))
-            except ValueError:
-                pass
+            except ValueError as exc:
+                log.warning("FIRMS: invalid FIRMS_LAT/FIRMS_LON values: %s", exc)
 
         dz = os.environ.get("HANNA_DROP_ZONE", "")
         if dz:
@@ -106,7 +106,8 @@ class FIRMSAdapter(ReconAdapter):
                         if lat is not None and lon is not None:
                             out.append((float(lat), float(lon),
                                         f"stix:{rpt.parent.name}"))
-            except (json.JSONDecodeError, OSError, ValueError, KeyError):
+            except (json.JSONDecodeError, OSError, ValueError, KeyError) as exc:
+                log.debug("FIRMS: drop-zone parse skipped for %s: %s", rpt, exc)
                 continue
         return out
 

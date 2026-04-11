@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import struct
 from datetime import datetime
@@ -9,6 +10,9 @@ from pathlib import Path
 from typing import Any, Optional, Union, Tuple, List, Dict
 
 from adapters.base import ReconAdapter, ReconHit
+
+
+log = logging.getLogger("hanna.recon")
 
 
 class SatIntelAdapter(ReconAdapter):
@@ -156,8 +160,8 @@ class SatIntelAdapter(ReconAdapter):
                 if tag == target_tag:
                     value = struct.unpack(f'{endian}I', data[entry_offset + 8:entry_offset + 12])[0]
                     return value
-        except (struct.error, IndexError):
-            pass
+        except (struct.error, IndexError) as exc:
+            log.debug("satintel failed to find EXIF GPS tag in IFD: %s", exc)
         return None
 
     @staticmethod
@@ -207,8 +211,8 @@ class SatIntelAdapter(ReconAdapter):
             if -90 <= lat <= 90 and -180 <= lon <= 180:
                 return (lat, lon)
 
-        except (struct.error, IndexError, ValueError, ZeroDivisionError):
-            pass
+        except (struct.error, IndexError, ValueError, ZeroDivisionError) as exc:
+            log.debug("satintel failed to parse GPS IFD: %s", exc)
         return None
 
     def _reverse_geocode(self, lat: float, lon: float, source_file: str) -> list[ReconHit]:
@@ -235,6 +239,6 @@ class SatIntelAdapter(ReconAdapter):
                             "source_file": source_file,
                         },
                     ))
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError as exc:
+                log.debug("satintel reverse geocode parse failed for lat=%s lon=%s: %s", lat, lon, exc)
         return hits

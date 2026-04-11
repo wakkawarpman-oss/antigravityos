@@ -2,12 +2,16 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 import urllib.parse
 from datetime import datetime
 
 from adapters.base import ReconAdapter, ReconHit
+
+
+log = logging.getLogger("hanna.recon")
 
 
 class Search4FacesAdapter(ReconAdapter):
@@ -103,7 +107,7 @@ class Search4FacesAdapter(ReconAdapter):
                     },
                     cross_refs=[target_name],
                 ))
-        except (json.JSONDecodeError, TypeError):
-            pass
+        except (json.JSONDecodeError, TypeError) as exc:
+            log.debug("search4faces parse failed for source_db=%s image_url=%s: %s", source_db, image_url, exc)
 
         return hits

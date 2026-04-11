@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import urllib.parse
@@ -9,6 +10,9 @@ from datetime import datetime
 
 from adapters.base import DependencyUnavailableError, MissingBinaryError, ReconAdapter, ReconHit
 from adapters.cli_common import run_cli
+
+
+log = logging.getLogger("hanna.recon")
 
 
 class MaryamAdapter(ReconAdapter):
@@ -90,8 +94,8 @@ class MaryamAdapter(ReconAdapter):
                         raw_record=item,
                         cross_refs=[query],
                     ))
-        except (json.JSONDecodeError, TypeError):
-            pass
+        except (json.JSONDecodeError, TypeError) as exc:
+            log.debug("maryam web_search parse failed for query=%s: %s", query, exc)
         return hits
 
     def _fallback_ddg_search(self, query: str) -> list[ReconHit]:
@@ -145,8 +149,8 @@ class MaryamAdapter(ReconAdapter):
                         timestamp=datetime.now().isoformat(),
                         raw_record={"query": query, "email": email_str},
                     ))
-        except (json.JSONDecodeError, TypeError):
-            pass
+        except (json.JSONDecodeError, TypeError) as exc:
+            log.debug("maryam email_search parse failed for query=%s: %s", query, exc)
         return hits
 
     def _run_social_nets(self, username: str) -> list[ReconHit]:
@@ -171,6 +175,6 @@ class MaryamAdapter(ReconAdapter):
                         raw_record=profile if isinstance(profile, dict) else {"url": url},
                         cross_refs=[username],
                     ))
-        except (json.JSONDecodeError, TypeError):
-            pass
+        except (json.JSONDecodeError, TypeError) as exc:
+            log.debug("maryam social_nets parse failed for username=%s: %s", username, exc)
         return hits

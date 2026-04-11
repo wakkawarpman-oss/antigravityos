@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import urllib.parse
@@ -16,6 +17,9 @@ from adapters.base import (
     extract_validated_phones,
 )
 from adapters.cli_common import run_cli
+
+
+log = logging.getLogger("hanna.recon")
 
 
 class AshokAdapter(ReconAdapter):
@@ -143,8 +147,8 @@ class AshokAdapter(ReconAdapter):
                                     timestamp=datetime.now().isoformat(),
                                     raw_record=cert,
                                 ))
-            except (json.JSONDecodeError, TypeError):
-                pass
+            except (json.JSONDecodeError, TypeError) as exc:
+                log.debug("ashok crt.sh parse failed for domain=%s: %s", domain, exc)
 
         return hits
 
@@ -280,7 +284,8 @@ class AshokAdapter(ReconAdapter):
                         timestamp=datetime.now().isoformat(),
                         raw_record={"domain": domain, "timestamp": ts, "url": orig_url, "wayback_url": wb_url},
                     ))
-            except (json.JSONDecodeError, IndexError, TypeError):
+            except (json.JSONDecodeError, IndexError, TypeError) as exc:
+                log.debug("ashok wayback parse failed for domain=%s page=%s: %s", domain, page_slug, exc)
                 continue
 
         return hits
@@ -314,7 +319,8 @@ class AshokAdapter(ReconAdapter):
                         timestamp=datetime.now().isoformat(),
                         raw_record={"slug": slug, "timestamp": ts, "url": orig_url},
                     ))
-            except (json.JSONDecodeError, IndexError, TypeError):
+            except (json.JSONDecodeError, IndexError, TypeError) as exc:
+                log.debug("ashok wayback-by-name parse failed for slug=%s: %s", slug, exc)
                 continue
 
         return hits

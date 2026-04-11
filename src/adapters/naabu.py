@@ -2,11 +2,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import datetime
 
 from adapters.base import ReconAdapter, ReconHit
 from adapters.cli_common import run_cli
+
+
+log = logging.getLogger("hanna.recon")
 
 
 class NaabuAdapter(ReconAdapter):
@@ -47,7 +51,8 @@ class NaabuAdapter(ReconAdapter):
         for line in proc.stdout.splitlines():
             try:
                 obj = json.loads(line)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as exc:
+                log.debug("naabu JSON parse failed for target=%s: %s", target, exc)
                 continue
             host = obj.get("host") or target
             port = obj.get("port")

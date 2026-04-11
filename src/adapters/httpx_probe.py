@@ -2,12 +2,16 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from datetime import datetime
 
 from adapters.base import ReconAdapter, ReconHit
 from adapters.cli_common import run_cli
+
+
+log = logging.getLogger("hanna.recon")
 
 
 class HttpxAdapter(ReconAdapter):
@@ -60,7 +64,8 @@ class HttpxAdapter(ReconAdapter):
         for line in proc.stdout.splitlines():
             try:
                 obj = json.loads(line)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as exc:
+                log.debug("httpx JSON parse failed for target=%s: %s", target, exc)
                 continue
 
             url = obj.get("url") or obj.get("input") or target

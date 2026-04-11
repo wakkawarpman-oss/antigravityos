@@ -4,12 +4,16 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
+import logging
 from shutil import which
 from pathlib import Path
 from typing import Union, Optional
 
 from adapters.base import DependencyUnavailableError, MissingBinaryError
 from config import CLI_TIMEOUT_SAFETY_MARGIN, MODULE_WORKER_TIMEOUT, REQUIRE_PROXY, WORKER_TIMEOUT
+
+
+log = logging.getLogger("hanna.recon")
 
 
 COMMON_BIN_DIRS: tuple[str, ...] = (
@@ -54,8 +58,8 @@ def kill_process_group(exc: subprocess.TimeoutExpired) -> None:
         pid = getattr(exc, "pid", None)
         if pid:
             os.killpg(os.getpgid(pid), signal.SIGKILL)
-    except (OSError, ProcessLookupError):
-        pass
+    except (OSError, ProcessLookupError) as exc:
+        log.debug("failed to kill timed-out process group: %s", exc)
 
 
 def run_cli(

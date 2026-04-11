@@ -124,7 +124,8 @@ class NucleiAdapter(ReconAdapter):
                 continue
             try:
                 obj = json.loads(line)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as exc:
+                log.debug("nuclei JSON parse failed for target=%s: %s", target, exc)
                 continue
 
             template_id = obj.get("template-id", obj.get("templateID", ""))

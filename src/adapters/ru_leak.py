@@ -98,7 +98,19 @@ class RULeakAdapter(ReconAdapter):
                                 )
                                 continue
 
-                            record_text = json.dumps(record, ensure_ascii=False).lower()
+                            if isinstance(record, dict):
+                                key_fields = [
+                                    str(record.get("name", "")),
+                                    str(record.get("full_name", "")),
+                                    str(record.get("username", "")),
+                                    str(record.get("screen_name", "")),
+                                    str(record.get("email", "")),
+                                    str(record.get("phone", "")),
+                                    str(record.get("city", "")),
+                                ]
+                                record_text = (" ".join(key_fields) + " " + json.dumps(record, ensure_ascii=False)).lower()
+                            else:
+                                record_text = json.dumps(record, ensure_ascii=False).lower()
 
                             # Match: latin name parts OR cyrillic variants OR username
                             name_match = all(part in record_text for part in name_parts)
@@ -180,7 +192,13 @@ class RULeakAdapter(ReconAdapter):
                                         raw_record=record,
                                         timestamp=datetime.now().isoformat(),
                                     ))
-                except (OSError, PermissionError):
+                except (OSError, PermissionError) as exc:
+                    log.warning(
+                        "LEAK_FILE_READ_ERROR",
+                        adapter=self.name,
+                        error=str(exc),
+                        source_file=str(fpath),
+                    )
                     continue
 
         return hits

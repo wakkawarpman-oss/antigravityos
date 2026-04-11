@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
 import tempfile
@@ -10,6 +11,9 @@ from pathlib import Path
 
 from adapters.base import ReconAdapter, ReconHit
 from adapters.cli_common import resolve_cli_timeout, run_cli
+
+
+log = logging.getLogger("hanna.recon")
 
 
 class ReconNGAdapter(ReconAdapter):
@@ -95,7 +99,8 @@ class ReconNGAdapter(ReconAdapter):
         hits: list[ReconHit] = []
         try:
             db = sqlite3.connect(db_path)
-        except sqlite3.Error:
+        except sqlite3.Error as exc:
+            log.debug("reconng failed to open sqlite workspace db %s: %s", db_path, exc)
             return hits
         try:
             for select_sql, pragma_sql, obs_type, field in [
@@ -105,7 +110,8 @@ class ReconNGAdapter(ReconAdapter):
             ]:
                 try:
                     rows = db.execute(select_sql).fetchall()
-                except sqlite3.Error:
+                except sqlite3.Error as exc:
+                    log.debug("reconng sqlite query failed for %s: %s", select_sql, exc)
                     continue
                 cols = [c[1] for c in db.execute(pragma_sql).fetchall()]
                 for row in rows:

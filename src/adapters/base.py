@@ -296,8 +296,8 @@ class ReconAdapter(ABC):
                 parsed = float(str(retry_after).strip())
                 if parsed > 0:
                     return min(parsed, RETRY_MAX_DELAY)
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as exc:
+                log.debug("%s: invalid Retry-After header value %r: %s", "base", retry_after, exc)
         return min(RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5), RETRY_MAX_DELAY)
 
     @retry(
@@ -341,8 +341,8 @@ class ReconAdapter(ABC):
                     self._record_failure()
                     return e.code, ""
                 # 5xx: retry
-            except (urllib.error.URLError, socket.timeout, OSError):
-                pass
+            except (urllib.error.URLError, socket.timeout, OSError) as exc:
+                log.debug("%s: GET request failed for %s on attempt %d: %s", self.name, url, attempt + 1, exc)
             if attempt < RETRY_MAX_ATTEMPTS - 1:
                 delay = min(RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5), RETRY_MAX_DELAY)
                 time.sleep(delay)
@@ -379,8 +379,8 @@ class ReconAdapter(ABC):
                 if e.code < 500:
                     self._record_failure()
                     return e.code, ""
-            except (urllib.error.URLError, socket.timeout, OSError):
-                pass
+            except (urllib.error.URLError, socket.timeout, OSError) as exc:
+                log.debug("%s: POST request failed for %s on attempt %d: %s", self.name, url, attempt + 1, exc)
             if attempt < RETRY_MAX_ATTEMPTS - 1:
                 delay = min(RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5), RETRY_MAX_DELAY)
                 time.sleep(delay)
