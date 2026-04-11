@@ -36,7 +36,11 @@ from tui.state import (
 
 STARTUP_BANNER_TEXT = "HANNA cockpit active. Enter commands in hanna > below. Press / to refocus input. Press q to quit."
 STARTUP_NOTIFY_TEXT = "You are inside HANNA. Type commands in hanna > below. Press / if focus leaves the input."
-HELP_NOTIFICATION_TEXT = "Keys: / focus command line, 1-4 switch views, e edit profile, m manual, a aggregate, c chain, r refresh readiness, x clear timeline, v toggle noise, q quit"
+HELP_NOTIFICATION_TEXT = (
+    "Keys: / focus command line, 1-4 switch views, [ and ] cycle views, "
+    "e edit profile, m/a/c run modes, s export STIX, z export ZIP, "
+    "r refresh readiness, x clear timeline, v toggle noise, q quit"
+)
 
 
 class HannaTUIApp(App[None]):
@@ -110,20 +114,27 @@ class HannaTUIApp(App[None]):
 
     BINDINGS = [
         ("q", "quit", "Quit"),
+        ("h", "help", "Help"),
         ("?", "help", "Help"),
         ("/", "focus_command", "Command"),
         ("1", "view_overview", "Overview"),
         ("2", "view_pipeline", "Pipeline"),
         ("3", "view_readiness", "Readiness"),
         ("4", "view_activity", "Activity"),
+        ("[", "view_prev", "Prev View"),
+        ("]", "view_next", "Next View"),
         ("m", "run_manual", "Manual"),
         ("a", "run_aggregate", "Aggregate"),
         ("c", "run_chain", "Chain"),
+        ("s", "export_stix", "Export STIX"),
+        ("z", "export_zip", "Export ZIP"),
         ("e", "edit_profile", "Edit"),
         ("r", "refresh_readiness", "Refresh"),
         ("x", "clear_timeline", "Clear"),
         ("v", "toggle_rejected", "Toggle Noise"),
     ]
+
+    _VIEW_ORDER = ("overview", "pipeline", "readiness", "activity")
 
     def __init__(self, session_state: Optional[SessionState] = None, plain: bool = False) -> None:
         super().__init__()
@@ -177,6 +188,16 @@ class HannaTUIApp(App[None]):
     def action_view_activity(self) -> None:
         self._switch_view("activity")
 
+    def action_view_next(self) -> None:
+        current = self.session_state.current_view
+        idx = self._VIEW_ORDER.index(current) if current in self._VIEW_ORDER else 0
+        self._switch_view(self._VIEW_ORDER[(idx + 1) % len(self._VIEW_ORDER)])
+
+    def action_view_prev(self) -> None:
+        current = self.session_state.current_view
+        idx = self._VIEW_ORDER.index(current) if current in self._VIEW_ORDER else 0
+        self._switch_view(self._VIEW_ORDER[(idx - 1) % len(self._VIEW_ORDER)])
+
     def action_run_manual(self) -> None:
         self._start_run("manual")
 
@@ -212,6 +233,12 @@ class HannaTUIApp(App[None]):
 
     def action_focus_command(self) -> None:
         self._focus_command_input()
+
+    def action_export_stix(self) -> None:
+        self._export_last_result("stix")
+
+    def action_export_zip(self) -> None:
+        self._export_last_result("zip")
 
     def _focus_command_input(self) -> None:
         if not self.is_mounted:
@@ -370,12 +397,22 @@ class HannaTUIApp(App[None]):
         head = tokens[0].lower()
         if head == "run":
             self._handle_run_command(tokens[1:])
+        elif head in {"manual", "aggregate", "chain"}:
+            self._start_run(head)
         elif head == "view" and len(tokens) > 1:
             view = tokens[1].lower()
             if view in self._screens:
                 self._switch_view(view)
+            elif view in {"next", "n"}:
+                self.action_view_next()
+            elif view in {"prev", "p"}:
+                self.action_view_prev()
         elif head in {"toggle", "details"}:
             self.action_toggle_rejected()
+        elif head == "clear":
+            self.action_clear_timeline()
+        elif head in {"quit", "exit"}:
+            self.action_quit()
         elif head == "export" and len(tokens) > 1:
             self._export_last_result(tokens[1].lower())
         elif head == "help":

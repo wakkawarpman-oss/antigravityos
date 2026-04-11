@@ -211,9 +211,11 @@ class CommandLegendPanel(Static):
         self.update(
             "QUICK COMMANDS\n"
             "/ focus command line\n"
-            "? help\n"
+            "? or h help\n"
+            "[ and ] switch views\n"
             "e edit operator profile\n"
             "m manual | a aggregate | c chain\n"
+            "s export STIX | z export ZIP\n"
             "q quit"
         )
 

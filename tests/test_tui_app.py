@@ -122,3 +122,45 @@ def test_command_prompt_run_updates_profile_and_starts_mode(monkeypatch):
     assert started == ["aggregate"]
     assert app.session_state.execution.target == "Ivan Signal"
     assert "ivan_ops" in app.session_state.execution.known_usernames
+
+
+def test_command_prompt_mode_alias_starts_matching_run(monkeypatch):
+    state = build_default_session_state(target="Case Entity", modules=["pd-infra"], default_mode="idle")
+    app = HannaTUIApp(session_state=state)
+    started: list[str] = []
+
+    monkeypatch.setattr(app, "_refresh_views", lambda: None)
+    monkeypatch.setattr(app, "_start_run", lambda mode: started.append(mode))
+
+    app._execute_command("chain")
+
+    assert started == ["chain"]
+
+
+def test_command_prompt_clear_alias_clears_pipeline(monkeypatch):
+    state = build_default_session_state(target="Case Entity", modules=["pd-infra"], default_mode="chain")
+    app = HannaTUIApp(session_state=state)
+
+    monkeypatch.setattr(app, "_refresh_views", lambda: None)
+    app.session_state.pipeline.phase = "resolve"
+    app.session_state.pipeline.phase_timeline.append("[ts] resolve")
+
+    app._execute_command("clear")
+
+    assert app.session_state.pipeline.phase == "idle"
+    assert app.session_state.pipeline.phase_timeline == []
+
+
+def test_action_view_next_cycles_views(monkeypatch):
+    state = build_default_session_state(target="Case Entity", modules=["pd-infra"], default_mode="chain")
+    app = HannaTUIApp(session_state=state)
+    switched: list[str] = []
+
+    monkeypatch.setattr(app, "_switch_view", lambda name: switched.append(name))
+
+    app.session_state.current_view = "overview"
+    app.action_view_next()
+    app.session_state.current_view = "activity"
+    app.action_view_next()
+
+    assert switched == ["pipeline", "overview"]

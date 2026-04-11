@@ -75,3 +75,9 @@ Source: `.cache/stress_test_report.json`
 ## Master Plan Execution Update (OPSEC proxy propagation hardening)
 - Fixed adapter proxy forwarding in `amass`, `subfinder`, and `shodan` CLI paths to prevent strict-mode false failures and potential proxy bypass paths.
 - Added dedicated regression tests validating proxy propagation for those adapters via shared `run_cli` helper.
+
+## Master Plan Execution Update (TUI UX acceleration)
+- Added high-speed navigation shortcuts for cockpit views (`[` / `]`) and direct export shortcuts (`s` for STIX, `z` for ZIP).
+- Expanded command aliases for terminal operators: direct `manual|aggregate|chain`, plus `clear`, `exit`, and `view next|prev`.
+- Updated in-cockpit command legend/help text to match new controls.
+- Added TUI regression tests for alias execution and view-cycle behavior.

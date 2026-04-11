@@ -62,6 +62,7 @@ def test_run_mode_aggregate_emits_scheduler_driven_module_events(monkeypatch):
     )
 
     monkeypatch.setattr(execution_mod, "run_preflight", lambda modules=None: [])
+    monkeypatch.setattr(execution_mod, "resolve_modules", lambda modules=None: list(modules or []))
     monkeypatch.setattr(execution_mod, "build_tasks", lambda *args, **kwargs: ([], []))
 
     async def _run_tasks(self, tasks, label=""):
@@ -166,6 +167,7 @@ def test_run_mode_chain_emits_detailed_phase_counters(monkeypatch, tmp_path):
 
     monkeypatch.setattr(execution_mod, "DiscoveryEngine", FakeEngine)
     monkeypatch.setattr(execution_mod, "run_preflight", lambda modules=None: [])
+    monkeypatch.setattr(execution_mod, "resolve_modules", lambda modules=None: list(modules or []))
     monkeypatch.setattr(execution_mod, "_run_deep_recon_live", lambda engine, config, modules, event_sink: report)
     monkeypatch.setattr(execution_mod, "_export_artifacts", lambda result, config: {})
 
