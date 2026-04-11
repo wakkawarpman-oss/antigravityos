@@ -44,6 +44,8 @@ def _sample_summary(*, overall_status: str = "pass", failure_count: int = 0) -> 
             "preflight": {"status": "pass"},
             "smart_summary": {"status": "pass"},
             "focused_regression": {"status": "pass"},
+            "baseline_kpi": {"status": "pass"},
+            "smoke_matrix": {"status": "pass"},
             "live_smoke": {"enabled": False, "status": "not-run"},
             "tor_policy": {"enabled": False, "status": "not-run"},
             "stix_validation": {"enabled": False, "status": "not-run"},
@@ -102,6 +104,17 @@ def test_evaluate_required_checks_accepts_tor_policy_pass():
     payload["checks"]["tor_policy"] = {"enabled": True, "status": "pass"}
 
     failures = module.evaluate_required_checks(payload, ["tor_policy"])
+
+    assert failures == []
+
+
+def test_evaluate_required_checks_accepts_baseline_and_smoke_checks_pass():
+    module = _load_module(Path(__file__).resolve().parents[1] / "scripts" / "prelaunch_gate.py", "prelaunch_gate_baseline_smoke_pass")
+    payload = _sample_summary()
+    payload["checks"]["baseline_kpi"] = {"status": "pass"}
+    payload["checks"]["smoke_matrix"] = {"status": "pass"}
+
+    failures = module.evaluate_required_checks(payload, ["baseline_kpi", "smoke_matrix"])
 
     assert failures == []
 

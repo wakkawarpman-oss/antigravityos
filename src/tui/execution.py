@@ -18,10 +18,17 @@ from config import (
 from discovery_engine import DiscoveryEngine
 from exporters import export_run_result_json, export_run_result_stix, export_run_result_zip
 from models import AdapterOutcome, RunResult
+from opsec_redaction import redact_runtime_payload
 from preflight import format_preflight_report, has_hard_failures, run_preflight
 from registry import MODULE_LANE, MODULES, resolve_modules
 from schedulers.dispatcher import MultiLaneDispatcher
 from schedulers.lanes import dedup_and_confirm
+from services.orchestration import (
+    ingest_metadata_exports,
+    resolve_clusters,
+    run_verification_stage,
+    render_dossier,
+)
 from worker import build_tasks
 
 
@@ -199,22 +206,13 @@ def _run_chain(config: TUIExecutionConfig, modules: list[str], event_sink: Event
     engine = DiscoveryEngine(db_path=config.db_path)
     _emit(event_sink, "phase", phase="ingest", detail="ingesting metadata")
     metas = sorted(exports.glob("*.json"))
-    ing = {"ingested": 0, "rejected": 0, "skipped": 0}
     _emit(event_sink, "phase_counters", phase="ingest", counters={"total_files": len(metas), "ingested": 0, "rejected": 0, "skipped": 0})
-    for meta_path in metas:
-        res = engine.ingest_metadata(meta_path)
-        status = res.get("status", "unknown")
-        if status == "ingested":
-            ing["ingested"] += 1
-        elif status == "rejected":
-            ing["rejected"] += 1
-        else:
-            ing["skipped"] += 1
-        _emit(event_sink, "phase_counters", phase="ingest", counters={"total_files": len(metas), **ing})
+    ing = ingest_metadata_exports(engine, exports)
+    _emit(event_sink, "phase_counters", phase="ingest", counters={"total_files": len(metas), **ing})
     _emit(event_sink, "activity", level="info", text=f"Ingest complete: {ing['ingested']} ok, {ing['rejected']} rejected, {ing['skipped']} skipped")
 
     _emit(event_sink, "phase", phase="resolve", detail="resolving entities")
-    clusters = engine.resolve_entities()
+    clusters = resolve_clusters(engine)
     _emit(event_sink, "phase_counters", phase="resolve", counters={"clusters": len(clusters)})
     _emit(event_sink, "activity", level="info", text=f"Entity resolution produced {len(clusters)} cluster(s)")
 
@@ -243,26 +241,33 @@ def _run_chain(config: TUIExecutionConfig, modules: list[str], event_sink: Event
             outcome_error = next((err["error"] for err in report.errors if err.get("module") == module_name), None)
             outcomes.append(AdapterOutcome(module_name=module_name, lane=MODULE_LANE.get(module_name, "fast"), hits=module_hits, error=outcome_error))
         if report.hits:
-            clusters = engine.resolve_entities()
+            clusters = resolve_clusters(engine)
             _emit(event_sink, "phase_counters", phase="resolve", counters={"clusters": len(clusters), "post_recon": 1})
 
-    if config.verify or config.verify_all:
+    if config.verify or config.verify_all or config.verify_content:
         _emit(event_sink, "phase", phase="verify_profiles", detail="verifying profile URLs")
         max_checks = 999_999 if config.verify_all else 200
         _emit(event_sink, "phase_counters", phase="verify_profiles", counters={"max_checks": max_checks, "proxy": "set" if config.proxy else "direct"})
-        engine.verify_profiles(max_checks=max_checks, timeout=4.0, proxy=config.proxy)
-        _emit(event_sink, "phase_counters", phase="verify_profiles", counters={"max_checks": max_checks, "completed": 1})
-        _emit(event_sink, "activity", level="info", text="Profile verification complete")
-    if config.verify_content:
-        _emit(event_sink, "phase", phase="verify_content", detail="verifying page content")
-        _emit(event_sink, "phase_counters", phase="verify_content", counters={"max_checks": 200, "proxy": "set" if config.proxy else "direct"})
-        engine.verify_content(max_checks=200, timeout=8.0, proxy=config.proxy)
-        _emit(event_sink, "phase_counters", phase="verify_content", counters={"max_checks": 200, "completed": 1})
-        _emit(event_sink, "activity", level="info", text="Content verification complete")
+        if config.verify_content:
+            _emit(event_sink, "phase", phase="verify_content", detail="verifying page content")
+            _emit(event_sink, "phase_counters", phase="verify_content", counters={"max_checks": 200, "proxy": "set" if config.proxy else "direct"})
+        run_verification_stage(
+            engine,
+            verify=config.verify,
+            verify_all=config.verify_all,
+            verify_content=config.verify_content,
+            proxy=config.proxy,
+        )
+        if config.verify or config.verify_all:
+            _emit(event_sink, "phase_counters", phase="verify_profiles", counters={"max_checks": max_checks, "completed": 1})
+            _emit(event_sink, "activity", level="info", text="Profile verification complete")
+        if config.verify_content:
+            _emit(event_sink, "phase_counters", phase="verify_content", counters={"max_checks": 200, "completed": 1})
+            _emit(event_sink, "activity", level="info", text="Content verification complete")
 
     _emit(event_sink, "phase", phase="render", detail="rendering dossier")
     _emit(event_sink, "phase_counters", phase="render", counters={"output_path": output_path, "report_mode": config.report_mode})
-    engine.render_graph_report(output_path=output_path, redaction_mode=config.report_mode)
+    render_dossier(engine, output_path=output_path, report_mode=config.report_mode)
     _emit(event_sink, "activity", level="ok", text=f"Dossier rendered: {output_path}")
 
     return RunResult(
@@ -277,6 +282,7 @@ def _run_chain(config: TUIExecutionConfig, modules: list[str], event_sink: Event
         new_phones=(recon_summary or {}).get("new_phones", []),
         new_emails=(recon_summary or {}).get("new_emails", []),
         extra={
+            "queued_modules": modules,
             "ingestion": ing,
             "clusters": len(clusters),
             "output_path": output_path,
@@ -452,4 +458,5 @@ def _save_deep_recon_report(report: ReconReport, log_dir: Path) -> None:
 
 
 def _emit(event_sink: EventSink, event_type: str, **payload) -> None:
-    event_sink({"type": event_type, **payload})
+    sanitized_payload = redact_runtime_payload(payload)
+    event_sink({"type": event_type, **sanitized_payload})

@@ -29,17 +29,18 @@ def _load_json(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _extract_stix_note_provenance(stix_payload: dict[str, Any]) -> dict[str, Any] | None:
+def _extract_stix_note_provenances(stix_payload: dict[str, Any]) -> list[dict[str, Any]]:
     objects = stix_payload.get("objects")
     if not isinstance(objects, list):
-        return None
+        return []
+    provenances: list[dict[str, Any]] = []
     for obj in objects:
         if not isinstance(obj, dict) or obj.get("type") != "note":
             continue
         provenance = obj.get("x_hanna_provenance")
         if isinstance(provenance, dict):
-            return provenance
-    return None
+            provenances.append(provenance)
+    return provenances
 
 
 def _extract_zip_manifest(zip_path: Path) -> dict[str, Any]:
@@ -106,7 +107,7 @@ def build_verification_payload(out_dir: Path) -> dict[str, Any]:
         )
 
     manifest_provenance: dict[str, Any] | None = None
-    stix_note_provenance: dict[str, Any] | None = None
+    stix_note_provenances: list[dict[str, Any]] = []
     zip_manifest_adapter_version: Any = None
 
     stix_raw = exports.get("stix")
@@ -114,7 +115,7 @@ def build_verification_payload(out_dir: Path) -> dict[str, Any]:
 
     if isinstance(stix_raw, str) and Path(stix_raw).exists():
         stix_payload = _load_json(Path(stix_raw))
-        stix_note_provenance = _extract_stix_note_provenance(stix_payload)
+        stix_note_provenances = _extract_stix_note_provenances(stix_payload)
     else:
         provenance_errors.append("missing STIX artifact for provenance checks")
 
@@ -131,10 +132,33 @@ def build_verification_payload(out_dir: Path) -> dict[str, Any]:
             f"{zip_manifest_adapter_version!r} expected {ADAPTER_RESULT_SCHEMA_VERSION}"
         )
 
-    for source_name, provenance in (("manifest", manifest_provenance), ("stix_note", stix_note_provenance)):
+    if not stix_note_provenances:
+        provenance_errors.append("stix_note.provenance missing")
+
+    for source_name, provenance in (("manifest", manifest_provenance),):
         if not isinstance(provenance, dict):
             provenance_errors.append(f"{source_name}.provenance missing")
             continue
+        namespace = provenance.get("namespace")
+        contracts = provenance.get("contracts") if isinstance(provenance.get("contracts"), dict) else {}
+        run_result_version = contracts.get("run_result_schema_version")
+        adapter_result_version = contracts.get("adapter_result_schema_version")
+
+        if namespace != CONTRACT_PROVENANCE_NAMESPACE:
+            provenance_errors.append(
+                f"{source_name}.namespace={namespace!r} expected {CONTRACT_PROVENANCE_NAMESPACE!r}"
+            )
+        if run_result_version != RUN_RESULT_SCHEMA_VERSION:
+            provenance_errors.append(
+                f"{source_name}.contracts.run_result_schema_version={run_result_version!r} expected {RUN_RESULT_SCHEMA_VERSION}"
+            )
+        if adapter_result_version != ADAPTER_RESULT_SCHEMA_VERSION:
+            provenance_errors.append(
+                f"{source_name}.contracts.adapter_result_schema_version={adapter_result_version!r} expected {ADAPTER_RESULT_SCHEMA_VERSION}"
+            )
+
+    for idx, provenance in enumerate(stix_note_provenances):
+        source_name = f"stix_note[{idx}]"
         namespace = provenance.get("namespace")
         contracts = provenance.get("contracts") if isinstance(provenance.get("contracts"), dict) else {}
         run_result_version = contracts.get("run_result_schema_version")
@@ -177,7 +201,7 @@ def build_verification_payload(out_dir: Path) -> dict[str, Any]:
                 "metadata_adapter_result_schema_version": metadata_adapter_version,
                 "runtime_adapter_result_schema_version": runtime_adapter_version,
                 "manifest_provenance": manifest_provenance,
-                "stix_note_provenance": stix_note_provenance,
+                "stix_note_provenances": stix_note_provenances,
                 "manifest_adapter_result_schema_version": zip_manifest_adapter_version,
             },
             "errors": provenance_errors,

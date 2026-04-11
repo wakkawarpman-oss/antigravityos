@@ -8,7 +8,7 @@ OUT_DIR="${HANNA_PRELAUNCH_OUT_DIR:-$ROOT/.cache/prelaunch/$STAMP}"
 RUN_LIVE_SMOKE="${HANNA_RUN_LIVE_SMOKE:-0}"
 RUN_FULL_REHEARSAL="${HANNA_RUN_FULL_REHEARSAL:-0}"
 RUN_TOR_POLICY_CHECK="${HANNA_PRELAUNCH_TOR_POLICY_CHECK:-1}"
-REQUIRED_CHECKS_RAW="${HANNA_PRELAUNCH_REQUIRED_CHECKS:-preflight,focused_regression,tor_policy}"
+REQUIRED_CHECKS_RAW="${HANNA_PRELAUNCH_REQUIRED_CHECKS:-preflight,focused_regression,tor_policy,contract_provenance}"
 STRICT_BY_GATE="${HANNA_PRELAUNCH_STRICT_BY_GATE:-0}"
 FULL_REHEARSAL_TARGET="${HANNA_FULL_REHEARSAL_TARGET:-}"
 FULL_REHEARSAL_MODULES="${HANNA_FULL_REHEARSAL_MODULES:-full-spectrum}"
@@ -72,6 +72,7 @@ EOF
 generate_final_summary() {
   env \
     PRELAUNCH_OUT_DIR="$OUT_DIR" \
+    PRELAUNCH_ROOT_DIR="$ROOT" \
     PRELAUNCH_RUN_LIVE_SMOKE="$RUN_LIVE_SMOKE" \
     PRELAUNCH_RUN_FULL_REHEARSAL="$RUN_FULL_REHEARSAL" \
     PRELAUNCH_RUN_TOR_POLICY_CHECK="$RUN_TOR_POLICY_CHECK" \
@@ -84,6 +85,7 @@ import re
 from pathlib import Path
 
 out_dir = Path(os.environ["PRELAUNCH_OUT_DIR"])
+root_dir = Path(os.environ["PRELAUNCH_ROOT_DIR"])
 run_live_smoke = os.environ.get("PRELAUNCH_RUN_LIVE_SMOKE") == "1"
 run_full_rehearsal = os.environ.get("PRELAUNCH_RUN_FULL_REHEARSAL") == "1"
 run_tor_policy_check = os.environ.get("PRELAUNCH_RUN_TOR_POLICY_CHECK") == "1"
@@ -96,6 +98,15 @@ status_map = {stage["slug"]: stage for stage in stages}
 
 def load_json(path_name):
     path = out_dir / path_name
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+
+
+def load_repo_json(path: Path):
     if not path.exists():
         return None
     try:
@@ -136,23 +147,48 @@ preflight = load_json("preflight.json")
 smart_summary = load_json("smart-summary.json")
 live_smoke = load_json("live-smoke.json")
 rehearsal_verification = load_json("full-rehearsal.verification.json")
+contract_provenance_smoke = load_json("contract-provenance-smoke.json")
 tor_policy = load_json("tor-policy.json")
 pytest_summary = parse_pytest_summary("pytest.txt")
 nonempty_err_count, nonempty_err_files = count_nonempty_err_files()
 
-contract_provenance_status = "not-run"
-contract_provenance_payload = None
+release_baseline_path = root_dir / "config" / "release_baseline.json"
+release_baseline = load_repo_json(release_baseline_path)
+
+baseline_kpi_status = "fail"
+baseline_kpi_detail = "missing or invalid config/release_baseline.json"
+if isinstance(release_baseline, dict) and isinstance(release_baseline.get("kpi_thresholds"), dict):
+  baseline_kpi_status = "pass"
+  baseline_kpi_detail = "loaded"
+
+smoke_matrix_status = "fail"
+smoke_matrix_detail = "missing canonical_smoke_matrix"
+if isinstance(release_baseline, dict) and isinstance(release_baseline.get("canonical_smoke_matrix"), dict):
+  matrix = release_baseline.get("canonical_smoke_matrix")
+  required_modes = {"chain", "aggregate", "manual", "tui"}
+  present_modes = set(matrix.keys())
+  if required_modes.issubset(present_modes):
+    smoke_matrix_status = "pass"
+    smoke_matrix_detail = "loaded"
+  else:
+    missing_modes = sorted(required_modes.difference(present_modes))
+    smoke_matrix_detail = f"missing modes: {', '.join(missing_modes)}"
+
+contract_provenance_status = status_map.get("contract-provenance-smoke", {}).get("status", "unknown")
+contract_provenance_payload = contract_provenance_smoke if isinstance(contract_provenance_smoke, dict) else None
 if run_full_rehearsal:
   if isinstance(rehearsal_verification, dict):
-    contract_payload = rehearsal_verification.get("contract_provenance")
-    if isinstance(contract_payload, dict):
-      contract_provenance_payload = contract_payload
-      status = contract_payload.get("status")
-      contract_provenance_status = status if isinstance(status, str) else "unknown"
-    else:
-      contract_provenance_status = "unknown"
-  else:
-    contract_provenance_status = "unknown"
+    rehearsal_contract = rehearsal_verification.get("contract_provenance")
+    if isinstance(rehearsal_contract, dict):
+      rehearsal_status = rehearsal_contract.get("status")
+      if isinstance(rehearsal_status, str):
+        contract_provenance_status = "pass" if contract_provenance_status == "pass" and rehearsal_status == "pass" else "fail"
+      contract_provenance_payload = {
+        "smoke": contract_provenance_smoke,
+        "rehearsal": rehearsal_contract,
+      }
+    elif contract_provenance_status != "pass":
+      contract_provenance_status = "fail"
 
 final_summary = {
     "schema_version": 1,
@@ -188,6 +224,18 @@ final_summary = {
             "path": "pytest.txt",
             "summary": pytest_summary,
         },
+        "baseline_kpi": {
+          "status": baseline_kpi_status,
+          "path": "config/release_baseline.json",
+          "detail": baseline_kpi_detail,
+          "thresholds": release_baseline.get("kpi_thresholds") if isinstance(release_baseline, dict) else None,
+        },
+        "smoke_matrix": {
+          "status": smoke_matrix_status,
+          "path": "config/release_baseline.json",
+          "detail": smoke_matrix_detail,
+          "matrix": release_baseline.get("canonical_smoke_matrix") if isinstance(release_baseline, dict) else None,
+        },
         "live_smoke": {
             "enabled": run_live_smoke,
             "status": status_map.get("optional-no-credential-chain-smoke", {}).get("status", "not-run") if run_live_smoke else "not-run",
@@ -216,9 +264,9 @@ final_summary = {
             "verification": rehearsal_verification,
         },
         "contract_provenance": {
-          "enabled": run_full_rehearsal,
+          "enabled": True,
           "status": contract_provenance_status,
-          "path": "full-rehearsal.verification.json" if run_full_rehearsal else None,
+          "path": "contract-provenance-smoke.json",
           "details": contract_provenance_payload,
         },
     },
@@ -364,6 +412,9 @@ run_step "Focused regression pack" \
   "$ROOT/tests/test_integration_runtime_smokes.py::test_aggregate_runtime_smoke_tracks_missing_credentials" \
   "$ROOT/tests/test_discovery_engine.py::TestEntityResolution::test_same_business_record_links_push_cluster_confidence_above_threshold" \
   -q > "$OUT_DIR/pytest.txt" 2> "$OUT_DIR/pytest.err"
+
+run_step "Contract provenance smoke" \
+  "$PY_BIN" "$ROOT/scripts/ci_verify_contract_provenance_smoke.py" > "$OUT_DIR/contract-provenance-smoke.json" 2> "$OUT_DIR/contract-provenance-smoke.err"
 
 if [[ "$RUN_LIVE_SMOKE" == "1" ]]; then
   run_step "Optional no-credential chain smoke" \

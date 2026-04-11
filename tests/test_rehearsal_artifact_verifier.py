@@ -112,3 +112,35 @@ def test_rehearsal_artifact_verifier_fails_closed_on_unknown_namespace(tmp_path)
     assert payload["contract_provenance"]["status"] == "fail"
     errors = payload["contract_provenance"]["errors"]
     assert any("namespace" in item for item in errors)
+
+
+def test_rehearsal_artifact_verifier_fails_when_any_stix_note_is_incompatible(tmp_path):
+    module = _load_module(
+        Path(__file__).resolve().parents[1] / "scripts" / "verify_rehearsal_artifacts.py",
+        "verify_rehearsal_artifacts_mixed_stix_notes_fail",
+    )
+    out_dir = _prepare_artifacts(tmp_path, namespace="urn:hanna:contract-provenance:v1")
+
+    stix_path = out_dir / "result.stix.json"
+    stix_payload = json.loads(stix_path.read_text(encoding="utf-8"))
+    stix_payload["objects"].append(
+        {
+            "type": "note",
+            "id": "note--bad-fixture",
+            "x_hanna_provenance": {
+                "namespace": "urn:hanna:contract-provenance:v99",
+                "contracts": {
+                    "run_result_schema_version": 1,
+                    "adapter_result_schema_version": 1,
+                },
+            },
+        }
+    )
+    stix_path.write_text(json.dumps(stix_payload), encoding="utf-8")
+
+    payload = module.build_verification_payload(out_dir)
+
+    assert payload["status"] == "fail"
+    assert payload["contract_provenance"]["status"] == "fail"
+    errors = payload["contract_provenance"]["errors"]
+    assert any("stix_note[1].namespace" in item for item in errors)

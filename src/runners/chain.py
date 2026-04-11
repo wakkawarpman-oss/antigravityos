@@ -27,6 +27,14 @@ from adapters.base import ReconHit
 from config import DEFAULT_DB_PATH, RUNS_ROOT
 from models import AdapterOutcome, RunResult
 from registry import resolve_modules
+from services.orchestration import (
+    ingest_confirmed_evidence,
+    ingest_metadata_exports,
+    render_dossier,
+    resolve_clusters,
+    run_recon_stage,
+    run_verification_stage,
+)
 
 log = logging.getLogger("hanna.runners.chain")
 
@@ -73,24 +81,13 @@ class ChainRunner:
         engine = DiscoveryEngine(db_path=self.db_path)
 
         # ── Stage 1: Ingest ──
-        metas = sorted(exports.glob("*.json"))
-        ing = {"ingested": 0, "rejected": 0, "skipped": 0}
-        for mp in metas:
-            res = engine.ingest_metadata(mp)
-            s = res.get("status", "unknown")
-            if s == "ingested":
-                ing["ingested"] += 1
-            elif s == "rejected":
-                ing["rejected"] += 1
-            else:
-                ing["skipped"] += 1
+        ing = ingest_metadata_exports(engine, exports)
         log.info("Ingest: %d ok, %d rejected, %d skipped", ing["ingested"], ing["rejected"], ing["skipped"])
 
-        for cf in (verified_files or []):
-            engine.ingest_confirmed_evidence(cf)
+        ingest_confirmed_evidence(engine, verified_files)
 
         # ── Stage 2: Entity resolution ──
-        clusters = engine.resolve_entities() or []
+        clusters = resolve_clusters(engine)
         log.info("Entity resolution: %d cluster(s)", len(clusters))
 
         # ── Stage 3: Deep recon ──
@@ -101,17 +98,18 @@ class ChainRunner:
         errors: list[dict] = []
         outcomes: list[AdapterOutcome] = []
 
-        if target_name or modules:
-            recon_result, recon_report = engine.run_deep_recon(
-                target_name=target_name,
-                modules=module_names if modules else None,
-                proxy=self.proxy,
-                leak_dir=self.leak_dir,
-                known_phones_override=known_phones,
-                known_usernames_override=known_usernames,
-            )
+        recon_result, recon_report = run_recon_stage(
+            engine,
+            target_name=target_name,
+            modules=module_names if modules else None,
+            proxy=self.proxy,
+            leak_dir=self.leak_dir,
+            known_phones=known_phones,
+            known_usernames=known_usernames,
+        )
+        if recon_result is not None:
             if recon_result and recon_result.get("new_observables", 0) > 0:
-                clusters = engine.resolve_entities() or []
+                clusters = resolve_clusters(engine)
 
             errors = recon_result.get("errors", []) if recon_result else []
             all_hits = list(recon_report.hits) if recon_report else []
@@ -127,14 +125,16 @@ class ChainRunner:
                 ))
 
         # ── Stage 4: Verification ──
-        if verify or verify_all:
-            max_checks = 999_999 if verify_all else 200
-            engine.verify_profiles(max_checks=max_checks, timeout=4.0, proxy=self.proxy)
-        if verify_content:
-            engine.verify_content(max_checks=200, timeout=8.0, proxy=self.proxy)
+        run_verification_stage(
+            engine,
+            verify=verify,
+            verify_all=verify_all,
+            verify_content=verify_content,
+            proxy=self.proxy,
+        )
 
         # ── Stage 5: Render ──
-        engine.render_graph_report(output_path=output_path, redaction_mode=report_mode)
+        render_dossier(engine, output_path=output_path, report_mode=report_mode)
         log.info("Dossier: %s", output_path)
 
         return RunResult(

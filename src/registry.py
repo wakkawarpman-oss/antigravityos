@@ -31,6 +31,8 @@ from adapters.search4faces import Search4FacesAdapter
 from adapters.shodan_adapter import ShodanAdapter
 from adapters.social_analyzer import SocialAnalyzerAdapter
 from adapters.subfinder_adapter import SubfinderAdapter
+from adapters.dnsx_adapter import DNSXAdapter
+from adapters.gau_adapter import GAUAdapter
 from adapters.ua_leak import UALeakAdapter
 from adapters.ua_phone import UAPhoneAdapter
 from adapters.vk_graph import VKGraphAdapter
@@ -62,6 +64,8 @@ ADAPTER_REGISTRY: dict[str, type[ReconAdapter]] = {
     "metagoofil": MetagoofilAdapter,
     "subfinder": SubfinderAdapter,
     "amass": AmassAdapter,
+    "dnsx": DNSXAdapter,
+    "gau": GAUAdapter,
     "nmap": NmapAdapter,
     "shodan": ShodanAdapter,
     "reconng": ReconNGAdapter,
@@ -95,18 +99,18 @@ MODULE_PRESETS: dict[str, list[str]] = {
         "avito", "maryam", "search4faces", "opendatabot",
     ],
     "slow-lane": ["ashok", "vk_graph", "social_analyzer", "web_search", "firms"],
-    "pd-infra-quick": ["httpx_probe", "katana", "nuclei", "naabu"],
-    "pd-infra-deep": ["httpx_probe", "katana", "nuclei", "naabu"],
-    "pd-infra": ["httpx_probe", "katana", "nuclei", "naabu"],
-    "pd-full": ["httpx_probe", "katana", "nuclei", "naabu", "ashok"],
+    "pd-infra-quick": ["httpx_probe", "katana", "nuclei", "naabu", "dnsx"],
+    "pd-infra-deep": ["httpx_probe", "katana", "nuclei", "naabu", "dnsx", "gau"],
+    "pd-infra": ["httpx_probe", "katana", "nuclei", "naabu", "dnsx"],
+    "pd-full": ["httpx_probe", "katana", "nuclei", "naabu", "dnsx", "gau", "ashok"],
     "person-deep": ["ua_phone", "ghunt", "holehe", "blackbird", "search4faces", "social_analyzer"],
     "email-chain": ["holehe", "ghunt", "metagoofil"],
-    "subdomain-full": ["subfinder", "amass", "ashok"],
+    "subdomain-full": ["subfinder", "amass", "dnsx", "ashok"],
     "port-scan": ["naabu", "nmap"],
-    "infra-deep": ["subfinder", "httpx_probe", "nuclei", "nmap", "shodan", "censys"],
-    "recon-auto-quick": ["subfinder", "httpx_probe", "nuclei", "katana", "naabu"],
-    "recon-auto-deep": ["subfinder", "httpx_probe", "nuclei", "katana", "naabu"],
-    "recon-auto": ["subfinder", "httpx_probe", "nuclei", "katana", "naabu"],
+    "infra-deep": ["subfinder", "dnsx", "gau", "httpx_probe", "nuclei", "nmap", "shodan", "censys"],
+    "recon-auto-quick": ["subfinder", "dnsx", "httpx_probe", "nuclei", "katana", "naabu"],
+    "recon-auto-deep": ["subfinder", "amass", "dnsx", "gau", "httpx_probe", "nuclei", "katana", "naabu"],
+    "recon-auto": ["subfinder", "dnsx", "gau", "httpx_probe", "nuclei", "katana", "naabu"],
     "full-spectrum-2026": _default_module_names(),
     "full-spectrum": _default_module_names(),
 }
@@ -129,6 +133,7 @@ MODULE_PRIORITY: dict[str, int] = {
     "naabu": 1,
     "subfinder": 1,
     "amass": 1,
+    "dnsx": 1,
     "shodan": 1,
     "censys": 1,
     "holehe": 1,
@@ -141,6 +146,7 @@ MODULE_PRIORITY: dict[str, int] = {
     "katana": 2,
     "blackbird": 2,
     "metagoofil": 2,
+    "gau": 2,
     "reconng": 2,
     "social_analyzer": 3,
     "maryam": 3,
@@ -163,6 +169,7 @@ MODULE_LANE: dict[str, str] = {
     "httpx_probe": "fast",
     "naabu": "fast",
     "subfinder": "fast",
+    "dnsx": "fast",
     "shodan": "fast",
     "censys": "fast",
     "holehe": "fast",
@@ -176,6 +183,7 @@ MODULE_LANE: dict[str, str] = {
     "katana": "slow",
     "metagoofil": "slow",
     "amass": "slow",
+    "gau": "slow",
     "nmap": "slow",
     "reconng": "slow",
     "eyewitness": "slow",

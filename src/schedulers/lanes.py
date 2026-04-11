@@ -1,6 +1,7 @@
 """Shared lane scheduler for deep_recon and aggregate runners."""
 from __future__ import annotations
 
+import os
 import time
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
@@ -32,6 +33,11 @@ class LaneScheduler:
     """Dispatch recon tasks by lane with worker isolation and timeout controls."""
 
     @staticmethod
+    def _legacy_scheduler_enabled() -> bool:
+        raw = os.environ.get("HANNA_ENABLE_LEGACY_SCHEDULER", "0").strip().lower()
+        return raw in {"1", "true", "yes", "on"}
+
+    @staticmethod
     def dispatch(
         tasks: list[ReconTask],
         max_workers: int,
@@ -39,6 +45,10 @@ class LaneScheduler:
         label: str = "",
         event_callback: Callable[[dict], None] | None = None,
     ) -> SchedulerResult:
+        if not LaneScheduler._legacy_scheduler_enabled():
+            raise RuntimeError(
+                "Legacy LaneScheduler is disabled. Set HANNA_ENABLE_LEGACY_SCHEDULER=1 to enable this path."
+            )
         result = SchedulerResult()
         n_workers = min(max_workers, len(tasks)) or 1
         prefix = f"[{label}] " if label else ""
@@ -287,12 +297,17 @@ class LaneScheduler:
                             )
             finally:
                 pending_cancelled = 0
+                pending_killed = 0
                 cancelled_modules: list[str] = []
+                killed_modules: list[str] = []
                 if pending:
                     pending_before_shutdown = len(pending)
                     for fut in list(pending):
                         task = future_map.get(fut)
-                        if fut.cancel() and task is not None:
+                        if task is None:
+                            pending.discard(fut)
+                            continue
+                        if fut.cancel():
                             pending_cancelled += 1
                             pending.discard(fut)
                             cancelled_modules.append(task.module_name)
@@ -325,6 +340,39 @@ class LaneScheduler:
                                     "error": msg,
                                 },
                             )
+                        else:
+                            pending_killed += 1
+                            pending.discard(fut)
+                            killed_modules.append(task.module_name)
+                            msg = "KILLED_FOR_SHUTDOWN"
+                            result.errors.append(
+                                {
+                                    "module": task.module_name,
+                                    "error": msg,
+                                    "error_kind": "killed_for_shutdown",
+                                }
+                            )
+                            result.task_results.append(
+                                TaskResult(
+                                    module_name=task.module_name,
+                                    lane=task.lane,
+                                    hits=[],
+                                    error=msg,
+                                    error_kind="killed_for_shutdown",
+                                    elapsed_sec=0.0,
+                                    raw_log_path="",
+                                )
+                            )
+                            LaneScheduler._emit(
+                                event_callback,
+                                {
+                                    "type": "task_killed_for_shutdown",
+                                    "label": label,
+                                    "lane": task.lane,
+                                    "module": task.module_name,
+                                    "error": msg,
+                                },
+                            )
                     LaneScheduler._emit(
                         event_callback,
                         {
@@ -333,7 +381,9 @@ class LaneScheduler:
                             "lane": lane_name,
                             "pending_before_shutdown": pending_before_shutdown,
                             "pending_cancelled": pending_cancelled,
+                            "pending_killed": pending_killed,
                             "modules_cancelled": cancelled_modules,
+                            "modules_killed": killed_modules,
                         },
                     )
                 LaneScheduler._shutdown_pool(pool, event_callback, label=label, lane=lane_name)

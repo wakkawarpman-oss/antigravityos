@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-11",
+  "kpi_thresholds": {
+    "tests_pass_rate_min": 1.0,
+    "timeout_rate_max": 0.2,
+    "export_success_rate_min": 0.95,
+    "worker_crash_rate_max": 0.02,
+    "preflight_fail_rate_max": 0.05
+  },
+  "canonical_smoke_matrix": {
+    "chain": {
+      "target": "example.com",
+      "modules": "full-spectrum"
+    },
+    "aggregate": {
+      "target": "example.com",
+      "modules": "pd-infra-quick"
+    },
+    "manual": {
+      "module": "ua_phone",
+      "target": "smoke-manual"
+    },
+    "tui": {
+      "target": "example.com",
+      "modules": "pd-infra-quick"
+    }
+  }
+}

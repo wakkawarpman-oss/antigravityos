@@ -31,3 +31,4 @@ Source: `.cache/stress_test_report.json`
 - Diagnostic lane: non-blocking negative smoke runs with unknown namespace (`urn:hanna:contract-provenance:v99`) in expect-fail mode to verify fail-closed behavior remains active.
 - Deploy gate policy: `Production Deploy` now always requires `contract_provenance`; optional strict mode (`HANNA_DEPLOY_REQUIRE_FULL_REHEARSAL`) also requires `full_rollout_rehearsal`.
 - Bridge preflight policy: `legacy_bridge_api_token` is now an always-visible preflight check; it hard-fails only when `HANNA_LEGACY_BRIDGE_ENABLED=1` and `OSINT_API_TOKEN` is missing.
+- Prelaunch now runs `Contract provenance smoke` unconditionally and publishes `contract-provenance-smoke.json`; `checks.contract_provenance` is based on this smoke and further tightened by rehearsal provenance when full rehearsal is enabled.

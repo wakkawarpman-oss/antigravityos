@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from adapters.base import ReconHit, ReconReport
+from models import RunResult
 from runners.chain import ChainRunner
 
 
@@ -161,3 +162,29 @@ def test_chain_runner_handles_none_clusters(monkeypatch, tmp_path):
 
     assert result.target_name == "unknown"
     assert result.extra.get("clusters") == 0
+
+
+def test_runtime_summary_tracks_killed_for_shutdown():
+    result = RunResult(
+        target_name="case",
+        mode="chain",
+        errors=[{"module": "x", "error": "KILLED_FOR_SHUTDOWN", "error_kind": "killed_for_shutdown"}],
+        started_at="2026-04-08T00:00:00",
+        finished_at="2026-04-08T00:00:01",
+    )
+
+    summary = result.runtime_summary()
+    assert summary["killed_for_shutdown"] == 1
+
+
+def test_runtime_summary_counts_unknown_error_kind_as_failed():
+    result = RunResult(
+        target_name="case",
+        mode="chain",
+        errors=[{"module": "x", "error": "unexpected", "error_kind": "unexpected_failure"}],
+        started_at="2026-04-08T00:00:00",
+        finished_at="2026-04-08T00:00:01",
+    )
+
+    summary = result.runtime_summary()
+    assert summary["failed"] == 1

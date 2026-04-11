@@ -18,11 +18,10 @@ import os
 import time
 from typing import Any, Optional, Union, List, Dict
 
-import urllib.request
-import urllib.error
 from cryptography.hazmat.primitives.ciphers import algorithms
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from config import REQUIRE_PROXY
+from net import proxy_aware_request
 
 log = logging.getLogger("hanna.recon.getcontact")
 
@@ -96,8 +95,6 @@ class GetContactClient:
         self._aes = _AESCipher(aes_key.strip())
         self._timeout = timeout
         self._proxy = proxy.strip() if proxy else None
-        proxy_handler = urllib.request.ProxyHandler({"http": self._proxy, "https": self._proxy}) if self._proxy else urllib.request.ProxyHandler({})
-        self._opener = urllib.request.build_opener(proxy_handler)
 
     # ── Public API ───────────────────────────────────────────────
 
@@ -196,18 +193,23 @@ class GetContactClient:
             "X-Encrypted": "1",
         }
 
-        req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
         try:
-            resp = self._opener.open(req, timeout=self._timeout)
-            raw_body = resp.read().decode("utf-8")
+            status, _resp_headers, raw_body = proxy_aware_request(
+                url=url,
+                method="POST",
+                timeout=self._timeout,
+                proxy=self._proxy,
+                headers=headers,
+                data=payload,
+            )
+            if status < 200 or status >= 300:
+                log.warning("GetContact API %s HTTP %d", endpoint, status)
+                return None
             resp_data = json.loads(raw_body)
             decrypted = self._aes.decrypt(resp_data["data"])
             result = json.loads(decrypted)
             log.debug("GetContact %s → %s", endpoint, json.dumps(result, ensure_ascii=False)[:200])
             return result
-        except urllib.error.HTTPError as e:
-            log.warning("GetContact API %s HTTP %d", endpoint, e.code)
-            return None
         except (json.JSONDecodeError, KeyError, ValueError, binascii.Error) as e:
             log.warning("GetContact API %s decode error: %s", endpoint, e)
             return None

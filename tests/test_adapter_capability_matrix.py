@@ -21,9 +21,11 @@ def test_resolve_modules_accepts_presets_without_duplicates():
     assert resolved.count("naabu") == 1
     assert "httpx_probe" in resolved
     assert "nuclei" in resolved
+    assert "dnsx" in resolved
 
 
 def test_critical_presets_contain_expected_modules():
-    assert {"httpx_probe", "katana", "nuclei", "naabu"}.issubset(set(MODULE_PRESETS["pd-infra-quick"]))
+    assert {"httpx_probe", "katana", "nuclei", "naabu", "dnsx"}.issubset(set(MODULE_PRESETS["pd-infra-quick"]))
     assert "ua_phone" in MODULE_PRESETS["person-deep"]
     assert "ghunt" in MODULE_PRESETS["email-chain"]
+    assert "gau" in MODULE_PRESETS["recon-auto"]

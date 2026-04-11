@@ -24,7 +24,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from config import DEFAULT_DB_PATH, RUNS_ROOT, TOR_ENABLED, TOR_PROXY_URL, TOR_REQUIRE_SOCKS5H
 from discovery_engine import DiscoveryEngine
+from opsec_redaction import redact_runtime_payload, seed_summary
 from registry import MODULE_PRESETS, MODULES, MODULE_LANE
+from services.orchestration import (
+    ingest_confirmed_evidence,
+    ingest_metadata_exports,
+    render_dossier,
+    resolve_clusters,
+    run_recon_stage,
+    run_verification_stage,
+)
 
 log = logging.getLogger("hanna.run_discovery")
 
@@ -141,8 +150,8 @@ def main():
         return
 
     exports = Path(args.exports_dir)
-    metas = sorted(exports.glob("*.json"))
-    log.info("Found %d metadata files in %s", len(metas), exports)
+    metadata_files = sorted(exports.glob("*.json"))
+    log.info("Found %d metadata files in %s", len(metadata_files), exports)
 
     # Default output
     if not args.output:
@@ -153,21 +162,8 @@ def main():
     engine = DiscoveryEngine(db_path=args.db)
 
     # Ingest all
-    results = {"ingested": 0, "rejected": 0, "skipped": 0}
-    for meta_path in metas:
-        result = engine.ingest_metadata(meta_path)
-        status = result.get("status", "unknown")
-        if status == "ingested":
-            results["ingested"] += 1
-        elif status == "rejected":
-            results["rejected"] += 1
-        else:
-            results["skipped"] += 1
-
-    confirmed_results = []
-    for confirmed_path in args.confirmed_file:
-        result = engine.ingest_confirmed_evidence(confirmed_path)
-        confirmed_results.append(result)
+    results = ingest_metadata_exports(engine, exports)
+    confirmed_results = ingest_confirmed_evidence(engine, args.confirmed_file)
 
     log.info("Ingestion: %d ingested, %d rejected, %d skipped",
              results['ingested'], results['rejected'], results['skipped'])
@@ -178,7 +174,7 @@ def main():
                      item['label'], item['imported'], item['duplicates'])
 
     # Resolve entities
-    clusters = engine.resolve_entities()
+    clusters = resolve_clusters(engine)
     log.info("Entity resolution: %d identity cluster(s)", len(clusters))
     for i, c in enumerate(clusters[:5]):
         obs_types = {}
@@ -213,61 +209,81 @@ def main():
             usernames = list(item["usernames"])
             log.info("[%d/%d] Deep recon target: %s", i, len(batch_targets), target)
             if phones:
-                log.info("  Seed phones: %s", phones)
+                log.info("  Seed phones: %s", seed_summary(phones, "phone"))
             if usernames:
-                log.info("  Seed usernames: %s", usernames)
+                log.info("  Seed usernames: %s", seed_summary(usernames, "username"))
 
-            result, _report = engine.run_deep_recon(
+            result, _report = run_recon_stage(
+                engine,
                 target_name=target,
                 modules=modules,
                 proxy=args.proxy,
                 leak_dir=args.leaks_dir,
-                known_phones_override=phones,
-                known_usernames_override=usernames,
+                known_phones=phones,
+                known_usernames=usernames,
             )
+            if result is None:
+                continue
             deep_recon_results.append(result)
-            log.info("Deep recon result: %s", json.dumps(result, indent=2, default=str))
+            redacted_result = redact_runtime_payload(result)
+            log.info("Deep recon result: %s", json.dumps(redacted_result, indent=2, default=str))
 
             if result.get("new_observables", 0) > 0:
                 log.info("Re-resolving entities with new deep recon data...")
-                clusters = engine.resolve_entities()
+                clusters = resolve_clusters(engine)
                 log.info("Updated: %d identity cluster(s)", len(clusters))
 
         deep_recon_result = deep_recon_results[-1] if deep_recon_results else None
     elif args.target or args.modules or args.mode:
-        deep_recon_result, _report = engine.run_deep_recon(
+        deep_recon_result, _report = run_recon_stage(
+            engine,
             target_name=args.target,
             modules=modules,
             proxy=args.proxy,
             leak_dir=args.leaks_dir,
+            known_phones=None,
+            known_usernames=None,
         )
-        deep_recon_results.append(deep_recon_result)
-        log.info("Deep recon result: %s", json.dumps(deep_recon_result, indent=2, default=str))
+        if deep_recon_result is not None:
+            deep_recon_results.append(deep_recon_result)
+            redacted_result = redact_runtime_payload(deep_recon_result)
+            log.info("Deep recon result: %s", json.dumps(redacted_result, indent=2, default=str))
 
         # Re-resolve entities with new data
         if deep_recon_result.get("new_observables", 0) > 0:
             log.info("Re-resolving entities with new deep recon data...")
-            clusters = engine.resolve_entities()
+            clusters = resolve_clusters(engine)
             log.info("Updated: %d identity cluster(s)", len(clusters))
 
     # ── Phone resolve shortcut ──
     if args.phone_resolve and not deep_recon_result:
-        deep_recon_result, _report = engine.run_deep_recon(
+        deep_recon_result, _report = run_recon_stage(
+            engine,
             target_name=args.target,
             modules=["ua_phone"],
             proxy=args.proxy,
             leak_dir=args.leaks_dir,
+            known_phones=None,
+            known_usernames=None,
         )
-        log.info("Phone resolve result: %s", json.dumps(deep_recon_result, indent=2, default=str))
-        if deep_recon_result.get("new_observables", 0) > 0:
-            clusters = engine.resolve_entities()
-            log.info("Updated: %d cluster(s)", len(clusters))
+        if deep_recon_result is not None:
+            redacted_result = redact_runtime_payload(deep_recon_result)
+            log.info("Phone resolve result: %s", json.dumps(redacted_result, indent=2, default=str))
+            if deep_recon_result.get("new_observables", 0) > 0:
+                clusters = resolve_clusters(engine)
+                log.info("Updated: %d cluster(s)", len(clusters))
 
     # ── Profile verification ──
     if args.verify or args.verify_all:
         max_checks = 999999 if args.verify_all else 200
         log.info("Running profile verification (max %d)...", max_checks)
-        engine.verify_profiles(max_checks=max_checks, timeout=4.0, proxy=args.proxy)
+        run_verification_stage(
+            engine,
+            verify=True,
+            verify_all=args.verify_all,
+            verify_content=False,
+            proxy=args.proxy,
+        )
         pstats = engine.get_profile_stats()
         log.info("Profile stats: %s", pstats)
 
@@ -284,7 +300,7 @@ def main():
     log.info("Stats: %s", json.dumps(stats, indent=2, default=str))
 
     # Render report
-    engine.render_graph_report(output_path=args.output, redaction_mode=args.report_mode)
+    render_dossier(engine, output_path=args.output, report_mode=args.report_mode)
     log.info("Graph-centric dossier written to: %s", args.output)
 
     # Also create a latest symlink

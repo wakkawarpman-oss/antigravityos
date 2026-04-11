@@ -49,6 +49,7 @@ def test_dedup_and_confirm_boosts_cross_confirmed_hits():
 def test_scheduler_emits_tor_rotation_events_for_empty_dispatch(monkeypatch):
     import schedulers.lanes as lanes_mod
 
+    monkeypatch.setenv("HANNA_ENABLE_LEGACY_SCHEDULER", "1")
     monkeypatch.setattr(lanes_mod, "TOR_ENABLED", True)
     monkeypatch.setattr(lanes_mod, "TOR_ROTATION_POLICY", "batch_on_error")
     monkeypatch.setattr(lanes_mod, "TOR_ROTATION_COOLDOWN_SEC", 10)
@@ -65,6 +66,17 @@ def test_scheduler_emits_tor_rotation_events_for_empty_dispatch(monkeypatch):
     event_types = [event.get("type") for event in events]
     assert "tor_rotation_policy" in event_types
     assert "tor_rotation_checkpoint" in event_types
+
+
+def test_scheduler_dispatch_requires_feature_flag(monkeypatch):
+    monkeypatch.delenv("HANNA_ENABLE_LEGACY_SCHEDULER", raising=False)
+
+    try:
+        LaneScheduler.dispatch(tasks=[], max_workers=1, log_dir=".")
+    except RuntimeError as exc:
+        assert "HANNA_ENABLE_LEGACY_SCHEDULER=1" in str(exc)
+    else:
+        raise AssertionError("Expected RuntimeError when legacy scheduler flag is disabled")
 
 
 class _HangingAdapter(ReconAdapter):

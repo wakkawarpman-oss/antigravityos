@@ -23,7 +23,7 @@ def test_preflight_report_contains_summary():
 def test_preflight_can_filter_by_modules():
     checks = run_preflight(modules=["pd-infra"])
     names = {check.name for check in checks}
-    assert names == {"nuclei", "katana", "httpx_probe", "naabu", "tor_policy", "legacy_bridge_api_token"}
+    assert names == {"nuclei", "katana", "httpx_probe", "naabu", "dnsx", "tor_policy", "legacy_bridge_api_token"}
 
 
 def test_has_hard_failures_false_for_current_filtered_pd_infra():

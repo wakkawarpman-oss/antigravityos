@@ -38,6 +38,8 @@ from adapters.censys_adapter import CensysAdapter
 from adapters.metagoofil_adapter import MetagoofilAdapter
 from adapters.subfinder_adapter import SubfinderAdapter
 from adapters.amass_adapter import AmassAdapter
+from adapters.dnsx_adapter import DNSXAdapter
+from adapters.gau_adapter import GAUAdapter
 from adapters.nmap_adapter import NmapAdapter
 from adapters.shodan_adapter import ShodanAdapter
 from adapters.reconng import ReconNGAdapter
@@ -69,6 +71,8 @@ ADAPTER_REGISTRY: dict[str, type[ReconAdapter]] = {
     "metagoofil": MetagoofilAdapter,
     "subfinder": SubfinderAdapter,
     "amass": AmassAdapter,
+    "dnsx": DNSXAdapter,
+    "gau": GAUAdapter,
     "nmap": NmapAdapter,
     "shodan": ShodanAdapter,
     "reconng": ReconNGAdapter,
@@ -106,6 +110,8 @@ __all__ = [
     "MetagoofilAdapter",
     "SubfinderAdapter",
     "AmassAdapter",
+    "DNSXAdapter",
+    "GAUAdapter",
     "NmapAdapter",
     "ShodanAdapter",
     "ReconNGAdapter",

@@ -7,10 +7,7 @@ import json
 import logging
 import random
 import re
-import socket
 import time
-import urllib.request
-import urllib.error
 import urllib.parse
 import asyncio
 from abc import ABC, abstractmethod
@@ -43,6 +40,7 @@ from config import (
     RETRY_MAX_ATTEMPTS,
     RETRY_MAX_DELAY,
 )
+from net import proxy_aware_request
 
 log = logging.getLogger("hanna.recon")
 ALLOWED_URL_SCHEMES = {"http", "https"}
@@ -247,15 +245,8 @@ class ReconAdapter(ABC):
         self.proxy = proxy
         self.timeout = timeout
         self.leak_dir = Path(leak_dir) if leak_dir else None
-        self._opener: Optional[urllib.request.OpenerDirector] = None
         self._consecutive_failures = 0
         self._is_healthy = True
-        if proxy:
-            proxy_handler = urllib.request.ProxyHandler({
-                "http": proxy,
-                "https": proxy,
-            })
-            self._opener = urllib.request.build_opener(proxy_handler)
 
     def _record_success(self) -> None:
         """Reset failure counter on successful request."""
@@ -318,36 +309,32 @@ class ReconAdapter(ABC):
         if not self._is_healthy:
             return 0, ""
         self._validate_url_scheme(url)
-        req = urllib.request.Request(url, headers=headers or {})
-        req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; rv:128.0) Gecko/20100101 Firefox/128.0")
-        last_status = 0
+        hdrs = dict(headers or {})
+        hdrs.setdefault("User-Agent", "Mozilla/5.0 (Windows NT 10.0; rv:128.0) Gecko/20100101 Firefox/128.0")
         for attempt in range(RETRY_MAX_ATTEMPTS):
-            try:
-                if self._opener:
-                    resp = self._opener.open(req, timeout=self.timeout)
-                else:
-                    resp = urllib.request.urlopen(req, timeout=self.timeout)  # nosec B310
-                body = resp.read().decode("utf-8", errors="replace")
+            status, resp_headers, body = proxy_aware_request(
+                url,
+                method="GET",
+                timeout=self.timeout,
+                proxy=self.proxy,
+                headers=hdrs,
+            )
+            if status == 429 and attempt < RETRY_MAX_ATTEMPTS - 1:
+                delay = self._rate_limit_delay(attempt, resp_headers)
+                log.warning("%s: 429 rate-limit for %s, retrying in %.2fs", self.name, url, delay)
+                time.sleep(delay)
+                continue
+            if 200 <= status < 300:
                 self._record_success()
-                return resp.status, body
-            except urllib.error.HTTPError as e:
-                last_status = e.code
-                if e.code == 429 and attempt < RETRY_MAX_ATTEMPTS - 1:
-                    delay = self._rate_limit_delay(attempt, getattr(e, "headers", None))
-                    log.warning("%s: 429 rate-limit for %s, retrying in %.2fs", self.name, url, delay)
-                    time.sleep(delay)
-                    continue
-                if e.code < 500:
-                    self._record_failure()
-                    return e.code, ""
-                # 5xx: retry
-            except (urllib.error.URLError, socket.timeout, OSError) as exc:
-                log.debug("%s: GET request failed for %s on attempt %d: %s", self.name, url, attempt + 1, exc)
+                return status, body
+            if status and status < 500:
+                self._record_failure()
+                return status, ""
             if attempt < RETRY_MAX_ATTEMPTS - 1:
                 delay = min(RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5), RETRY_MAX_DELAY)
                 time.sleep(delay)
         self._record_failure()
-        return last_status, ""
+        return 0, ""
 
     def _post(self, url: str, data: dict, headers: Optional[dict] = None) -> Tuple[int, str]:
         """HTTP POST (JSON body) through proxy with retry. Returns (status_code, body)."""
@@ -357,35 +344,32 @@ class ReconAdapter(ABC):
         payload = json.dumps(data).encode("utf-8")
         hdrs = dict(headers or {})
         hdrs["Content-Type"] = "application/json"
-        req = urllib.request.Request(url, data=payload, headers=hdrs, method="POST")
-        req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; rv:128.0) Gecko/20100101 Firefox/128.0")
-        last_status = 0
+        hdrs.setdefault("User-Agent", "Mozilla/5.0 (Windows NT 10.0; rv:128.0) Gecko/20100101 Firefox/128.0")
         for attempt in range(RETRY_MAX_ATTEMPTS):
-            try:
-                if self._opener:
-                    resp = self._opener.open(req, timeout=self.timeout)
-                else:
-                    resp = urllib.request.urlopen(req, timeout=self.timeout)  # nosec B310
-                body = resp.read().decode("utf-8", errors="replace")
+            status, resp_headers, body = proxy_aware_request(
+                url,
+                method="POST",
+                timeout=self.timeout,
+                proxy=self.proxy,
+                headers=hdrs,
+                data=payload,
+            )
+            if status == 429 and attempt < RETRY_MAX_ATTEMPTS - 1:
+                delay = self._rate_limit_delay(attempt, resp_headers)
+                log.warning("%s: 429 rate-limit for %s, retrying in %.2fs", self.name, url, delay)
+                time.sleep(delay)
+                continue
+            if 200 <= status < 300:
                 self._record_success()
-                return resp.status, body
-            except urllib.error.HTTPError as e:
-                last_status = e.code
-                if e.code == 429 and attempt < RETRY_MAX_ATTEMPTS - 1:
-                    delay = self._rate_limit_delay(attempt, getattr(e, "headers", None))
-                    log.warning("%s: 429 rate-limit for %s, retrying in %.2fs", self.name, url, delay)
-                    time.sleep(delay)
-                    continue
-                if e.code < 500:
-                    self._record_failure()
-                    return e.code, ""
-            except (urllib.error.URLError, socket.timeout, OSError) as exc:
-                log.debug("%s: POST request failed for %s on attempt %d: %s", self.name, url, attempt + 1, exc)
+                return status, body
+            if status and status < 500:
+                self._record_failure()
+                return status, ""
             if attempt < RETRY_MAX_ATTEMPTS - 1:
                 delay = min(RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5), RETRY_MAX_DELAY)
                 time.sleep(delay)
         self._record_failure()
-        return last_status, ""
+        return 0, ""
 
     @abstractmethod
     def search(

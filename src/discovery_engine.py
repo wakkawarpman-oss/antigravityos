@@ -63,6 +63,7 @@ from config import (
     VERIFY_WORKERS,
 )
 from net import proxy_aware_request
+from opsec_redaction import redact_proxy, seed_summary
 from observable_extractor import ObservableExtractor
 from profile_verifier import ProfileVerifier
 from report_renderer import ReportRenderer
@@ -631,9 +632,6 @@ class DiscoveryEngine:
         self.clusters = pipeline.resolve_entities()
         return self.clusters
 
-    def verify_content(self, max_checks: int = 100, timeout: float = 8.0, proxy: Optional[str] = None) -> Dict[str, int]:
-        return self.verifier.verify_content(max_checks, timeout, proxy)
-
     def get_pivot_queue(self) -> list[dict[str, Any]]:
         """Return observables needing further investigation with reasons."""
         existing_targets = {m.get("target", "") for m in self._metas}
@@ -758,10 +756,10 @@ class DiscoveryEngine:
 
         print(f"\n{'='*60}")
         print(f"DEEP RECON: {target_name}")
-        print(f"Known phones: {known_phones}")
-        print(f"Known usernames: {known_usernames}")
+        print(f"Known phones: {seed_summary(known_phones, 'phone')}")
+        print(f"Known usernames: {seed_summary(known_usernames, 'username')}")
         print(f"Modules: {modules or 'all'}")
-        print(f"Proxy: {proxy or 'direct'}")
+        print(f"Proxy: {redact_proxy(proxy)}")
         if leak_dir:
             print(f"Leak dir: {leak_dir}")
         print(f"{'='*60}\n")

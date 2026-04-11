@@ -98,16 +98,17 @@ class RunResult:
         dependency_unavailable_count = sum(1 for _module, _message, kind in error_entries if kind == "dependency_unavailable")
         worker_crash_count = sum(1 for _module, _message, kind in error_entries if kind == "worker_crash")
         cancelled_on_shutdown_count = sum(1 for _module, _message, kind in error_entries if kind == "cancelled_on_shutdown")
-        failed_count = max(
-            len(error_entries)
-            - timeout_count
-            - skipped_missing_credentials
-            - missing_binary_count
-            - dependency_unavailable_count
-            - worker_crash_count,
-            - cancelled_on_shutdown_count,
-            0,
-        )
+        killed_for_shutdown_count = sum(1 for _module, _message, kind in error_entries if kind == "killed_for_shutdown")
+        non_failure_kinds = {
+            "timeout",
+            "missing_credentials",
+            "missing_binary",
+            "dependency_unavailable",
+            "worker_crash",
+            "cancelled_on_shutdown",
+            "killed_for_shutdown",
+        }
+        failed_count = sum(1 for _module, _message, kind in error_entries if kind not in non_failure_kinds)
         exports = self.extra.get("exports", {}) if isinstance(self.extra.get("exports", {}), dict) else {}
 
         return {
@@ -123,6 +124,7 @@ class RunResult:
             "dependency_unavailable": dependency_unavailable_count,
             "worker_crash": worker_crash_count,
             "cancelled_on_shutdown": cancelled_on_shutdown_count,
+            "killed_for_shutdown": killed_for_shutdown_count,
             "exports": sorted(exports.keys()),
             "report_mode": self.extra.get("report_mode"),
         }
@@ -176,7 +178,8 @@ class RunResult:
             f"failed={runtime['failed']}  timed_out={runtime['timed_out']}  "
             f"skipped_missing_credentials={runtime['skipped_missing_credentials']}  "
             f"missing_binary={runtime['missing_binary']}  dependency_unavailable={runtime['dependency_unavailable']}  "
-            f"worker_crash={runtime['worker_crash']}  cancelled_on_shutdown={runtime['cancelled_on_shutdown']}"
+            f"worker_crash={runtime['worker_crash']}  cancelled_on_shutdown={runtime['cancelled_on_shutdown']}  "
+            f"killed_for_shutdown={runtime['killed_for_shutdown']}"
         )
         lines.append(runtime_line)
         if runtime["exports"]:

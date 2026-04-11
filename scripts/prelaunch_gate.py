@@ -13,6 +13,8 @@ KNOWN_CHECKS = (
     "preflight",
     "smart_summary",
     "focused_regression",
+    "baseline_kpi",
+    "smoke_matrix",
     "live_smoke",
     "tor_policy",
     "stix_validation",

@@ -341,6 +341,7 @@ def test_print_runtime_summary_block_includes_new_error_kinds(capsys):
             {"module": "foo", "error": "dependency unavailable: broken dylib", "error_kind": "dependency_unavailable"},
             {"module": "bar", "error": "worker_crash: boom", "error_kind": "worker_crash"},
             {"module": "baz", "error": "CANCELLED_ON_SHUTDOWN", "error_kind": "cancelled_on_shutdown"},
+            {"module": "qux", "error": "KILLED_FOR_SHUTDOWN", "error_kind": "killed_for_shutdown"},
         ],
         started_at="2026-04-08T00:00:00",
         finished_at="2026-04-08T00:00:01",
@@ -355,6 +356,8 @@ def test_print_runtime_summary_block_includes_new_error_kinds(capsys):
     assert payload["dependency_unavailable"] == 1
     assert payload["worker_crash"] == 1
     assert payload["cancelled_on_shutdown"] == 1
+    assert payload["killed_for_shutdown"] == 1
+    assert payload["failed"] == 0
 
 
 def test_cmd_manual_json_summary_only_emits_compact_json(monkeypatch, capsys):
@@ -393,7 +396,7 @@ def test_cmd_manual_json_summary_only_emits_compact_json(monkeypatch, capsys):
     cli_mod._cmd_manual(args)
 
     out = capsys.readouterr().out.strip().splitlines()
-    assert out == ['{"target_name":"Case","mode":"manual","adapter_result_schema_version":1,"queued":1,"completed":0,"failed":0,"timed_out":0,"skipped_missing_credentials":0,"missing_binary":0,"dependency_unavailable":0,"worker_crash":0,"cancelled_on_shutdown":0,"exports":[],"report_mode":null}']
+    assert out == ['{"target_name":"Case","mode":"manual","adapter_result_schema_version":1,"queued":1,"completed":0,"failed":0,"timed_out":0,"skipped_missing_credentials":0,"missing_binary":0,"dependency_unavailable":0,"worker_crash":0,"cancelled_on_shutdown":0,"killed_for_shutdown":0,"exports":[],"report_mode":null}']
 
 
 def test_cmd_manual_json_summary_emits_block(monkeypatch, capsys):

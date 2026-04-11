@@ -190,3 +190,46 @@ def test_run_mode_chain_emits_detailed_phase_counters(monkeypatch, tmp_path):
     ingest_updates = [event for event in counter_events if event["phase"] == "ingest"]
     assert any(event["counters"].get("total_files") == 2 for event in ingest_updates)
     assert any(event["counters"].get("ingested") == 1 for event in ingest_updates)
+
+
+def test_emit_redacts_sensitive_values_in_phase_counters():
+    import tui.execution as execution_mod
+
+    events: list[dict] = []
+    execution_mod._emit(
+        events.append,
+        "phase_counters",
+        phase="verify_profiles",
+        counters={
+            "proxy": "socks5h://127.0.0.1:9050",
+            "known_phones": ["+380991234567"],
+            "known_usernames": ["sensitive_user"],
+        },
+    )
+
+    payload = events[-1]
+    counters = payload["counters"]
+    assert counters["proxy"] == "socks5h://***:9050"
+    assert counters["known_phones"][0] != "+380991234567"
+    assert counters["known_usernames"][0] != "sensitive_user"
+
+
+def test_emit_redacts_sensitive_values_in_event_counters_payload():
+    import tui.execution as execution_mod
+
+    events: list[dict] = []
+    execution_mod._emit(
+        events.append,
+        "event_counters",
+        counters={
+            "proxy": "socks5h://10.0.0.2:9050",
+            "new_phones": ["+12025550173"],
+            "new_emails": ["operator@example.com"],
+        },
+    )
+
+    payload = events[-1]
+    counters = payload["counters"]
+    assert counters["proxy"] == "socks5h://***:9050"
+    assert counters["new_phones"][0] != "+12025550173"
+    assert counters["new_emails"][0] != "operator@example.com"

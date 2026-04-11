@@ -133,27 +133,50 @@ The platform core is ready for the next adapter wave. The highest-value missing 
 
 The next expansion should focus on adapters that fit the existing runtime cleanly and materially improve coverage.
 
+### Free-First + Freemium-Allowed Rule (Effective Immediately)
+
+This plan now follows a free-first execution track with controlled freemium usage.
+
+Excluded from canonical release blockers:
+
+- paid API-first workflows as mandatory release dependencies,
+- quota-dependent enrichers as hard blockers for baseline rollout,
+- any module that cannot degrade gracefully when free quota is exhausted.
+
+Freemium/tiered adapters are allowed in an optional enrichment lane when:
+
+- they have a usable free tier,
+- quota/rate-limit behavior is explicit,
+- failures are classified as non-blocking enrichment degradation.
+
+## Replacement Matrix (Paid-First -> Free/Freemium)
+
+| Paid-first direction | Free/Freemium replacement aligned with HANNA logic | Why it fits |
+|---|---|---|
+| `censys`-centric infra enrichment | primary: `dnsx` + `subfinder` + `amass` + `httpx_probe`; optional freemium lane: `censys` | free baseline first, freemium enriches without blocking |
+| `shodan`-centric infra enrichment | primary: `naabu` + `nmap` + `nuclei` + `katana`; optional freemium lane: `shodan` | local-first active validation, optional external enrichment |
+| paid URL/intel feeds | `gau` + Wayback-style URL history + `katana` crawl | improves endpoint corpus for verification/export without paid quota |
+| paid multi-source automation suites | SpiderFoot OSS import bridge (external -> normalized ingest) | preserves "external-first" boundary and avoids tight coupling |
+| paid distributed orchestration platforms | self-hosted `celery` + `redis` pilot lane | free horizontal execution with explicit queue contracts |
+
 ### Phase 1 — Infrastructure Expansion
 
 Priority: highest ROI for infrastructure recon and downstream pivoting.
 
-Planned adapters:
+Implemented adapters:
 
-- `httpx_probe`
-- `nuclei`
-- `katana`
-- `naabu`
-- `subfinder`
-- `amass`
+- `dnsx`
+- `gau`
 
 Intended outcome:
 
-- discover subdomains,
-- resolve live HTTP surfaces,
-- probe tech stack,
-- enumerate ports,
-- identify templated findings,
-- expand reachable endpoint inventory.
+- validate and de-noise discovered subdomains at resolver stage,
+- expand URL corpus before scan/verification stages,
+- improve downstream hit quality for chain exports and evidence packs.
+
+Execution note:
+
+- `httpx_probe`, `nuclei`, `katana`, `naabu`, `subfinder`, `amass` are already integrated and should be used as the default substrate for this phase.
 
 ### Phase 2 — Person and Account Expansion
 
@@ -163,14 +186,18 @@ Planned adapters:
 
 - `holehe`
 - `blackbird`
-- `censys`
 - `metagoofil`
+
+Free-first additions:
+
+- `theHarvester` wrapper (email/domain metadata expansion)
+- `sherlock` and `maigret` promotion from optional to supported free profile
+- optional freemium enrichment lane: `censys` (non-blocking when quota is exhausted)
 
 Intended outcome:
 
 - widen account-footprint discovery,
 - map email-to-service presence,
-- add certificate and host-side enrichment,
 - mine document metadata for emails and usernames.
 
 ### Phase 3 — Existing Tool Wrappers
@@ -180,7 +207,6 @@ Priority: convert already-installed tooling into first-class platform modules.
 Planned adapters:
 
 - `nmap`
-- `shodan`
 
 Optional wrappers depending on operational value:
 
@@ -188,6 +214,19 @@ Optional wrappers depending on operational value:
 - `maigret`
 - `phoneinfoga`
 - `theHarvester`
+- optional freemium enrichment lane: `shodan` (non-blocking when quota is exhausted)
+
+Free-only additions for throughput profiles:
+
+- `masscan` adapter (strict opt-in profile)
+- `zmap` adapter (isolated experimental profile)
+
+Guardrails for both:
+
+- disabled by default,
+- explicit CIDR allowlist,
+- explicit rate cap,
+- strict preflight policy + legal/OPSEC acknowledgement.
 
 ### Phase 4 — Framework Bridges
 
@@ -198,7 +237,46 @@ Planned adapters:
 - `reconng`
 - `eyewitness`
 
+Bridge-oriented additions (no tight coupling):
+
+- SpiderFoot OSS JSON import normalizer into canonical observables,
+- deterministic dedup + provenance tagging for imported artifacts.
+
 These should only be promoted when the parsing contract is stable and operational noise is acceptable.
+
+### Phase 5 — Free Distributed Execution Pilot
+
+Priority: scale batch throughput without introducing paid infrastructure.
+
+Planned implementation:
+
+- self-hosted `celery` + `redis` worker lane for `aggregate` mode,
+- idempotent task envelope for adapter runs,
+- retry policy + dead-letter handling,
+- metrics export for queue depth, retry count, and worker crash classes.
+
+Acceptance criteria:
+
+- no regression in existing chain/aggregate contracts,
+- deterministic result parity versus local dispatcher on control fixtures,
+- clear rollback path to in-process dispatcher.
+
+### Phase 6 — Optional Freemium Enrichment Lane
+
+Priority: increase coverage while preserving free baseline determinism.
+
+Planned implementation:
+
+- gate freemium adapters behind explicit profile flags,
+- classify quota/rate-limit as enrichment-degraded, not pipeline-failed,
+- enforce fallback to free adapters when freemium lane is unavailable,
+- expose freemium usage and degradation in runtime summary.
+
+Acceptance criteria:
+
+- baseline free profile remains green with freemium disabled,
+- freemium failures do not break artifact assembly,
+- operator can run with or without API keys without contract drift.
 
 ## Tools That Should Stay External
 
@@ -211,8 +289,26 @@ Some tools are still useful, but should not be promoted to first-class automated
 | Maltego | Visualization consumer of exports rather than a data producer |
 | gobuster / feroxbuster | Useful but too noisy for default automated integration |
 | OSINT Framework | Reference catalog, not a runnable adapter |
-| Kagi / Perplexity | Search engines, not stable adapter targets |
 | RustScan | Overlaps with `naabu` without enough advantage for the core pipeline |
+
+## Canonical Baseline Profile (Free-First)
+
+The default release profile for this plan is:
+
+- `subfinder`, `amass`, `dnsx`, `httpx_probe`, `katana`, `naabu`, `nuclei`, `nmap`,
+- `holehe`, `blackbird`, `metagoofil`, `sherlock`, `maigret`, `phoneinfoga`, `theHarvester`,
+- optional external SpiderFoot OSS ingestion through import bridge.
+
+Explicitly non-blocking for release in free profile:
+
+- paid API quota availability,
+- commercial enrichment endpoints,
+- optional tiered modules already present in repository.
+
+Optional freemium profile overlays:
+
+- `shodan`, `censys` when free quotas are available,
+- never required for release baseline verdict.
 
 ## Implementation Contract for New Adapters
 

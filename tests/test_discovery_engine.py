@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import sqlite3
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -248,3 +250,44 @@ class TestRenderGraphReport:
     def test_invalid_redaction_mode_raises(self):
         with pytest.raises(ValueError):
             self.eng.render_graph_report(redaction_mode="unknown")
+
+
+def test_run_deep_recon_console_output_masks_seed_and_proxy(tmp_db, monkeypatch, capsys):
+    eng = DiscoveryEngine(db_path=tmp_db)
+
+    class _FakeRunner:
+        def __init__(self, proxy=None, leak_dir=None):
+            self.proxy = proxy
+            self.leak_dir = leak_dir
+
+        def run(self, target_name, known_phones, known_usernames, modules=None):
+            return types.SimpleNamespace(
+                hits=[],
+                modules_run=modules or [],
+                new_phones=[],
+                new_emails=[],
+                cross_confirmed=[],
+                errors=[],
+            )
+
+        @staticmethod
+        def report_summary(_report):
+            return "summary"
+
+    monkeypatch.setitem(sys.modules, "deep_recon", types.SimpleNamespace(DeepReconRunner=_FakeRunner, ReconReport=object))
+
+    eng.run_deep_recon(
+        target_name="Target",
+        modules=["ua_phone"],
+        proxy="socks5h://127.0.0.1:9050",
+        known_phones_override=["+380991234567"],
+        known_usernames_override=["sensitive_user"],
+    )
+
+    out = capsys.readouterr().out
+    assert "+380991234567" not in out
+    assert "sensitive_user" not in out
+    assert "127.0.0.1" not in out
+    assert "Known phones: count=1" in out
+    assert "Known usernames: count=1" in out
+    assert "Proxy: socks5h://***:9050" in out

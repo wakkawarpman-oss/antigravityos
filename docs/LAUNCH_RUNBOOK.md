@@ -24,6 +24,12 @@ Before rollout, freeze these surfaces:
 - export contract: HTML + metadata + STIX + ZIP
 - reset semantics: preserve or remove generated runtime state only through `rs`
 
+Legacy scheduler policy:
+
+1. `LaneScheduler` path is feature-flagged and disabled by default.
+2. Enable only for controlled fallback testing via `HANNA_ENABLE_LEGACY_SCHEDULER=1`.
+3. Canonical production execution path is async dispatcher.
+
 ### Contract Compatibility Rule (Consumers)
 
 External consumers must treat contract provenance as the canonical compatibility gate.
@@ -213,6 +219,9 @@ The same verification step now enforces contract provenance compatibility:
 1. Metadata and runtime summary must expose supported `adapter_result_schema_version`.
 2. ZIP `manifest.json` and STIX `note.x_hanna_provenance` must use `urn:hanna:contract-provenance:v1`.
 3. Unknown namespace or unsupported contract versions fail the rehearsal gate (fail closed).
+
+`contract_provenance` check in `final-summary.json` is always populated via `contract-provenance-smoke.json`.
+When full rehearsal is enabled, the check is tightened by combining smoke status with rehearsal artifact provenance status.
 
 ## 4. Pass Criteria
 
