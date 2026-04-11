@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from models import RunResult
@@ -24,8 +25,23 @@ def _stix_id(stix_type: str, seed: str) -> str:
     return f"{stix_type}--{uuid.uuid5(_NS, seed)}"
 
 
+def _to_stix_timestamp(value: str) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return "1970-01-01T00:00:00.000Z"
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return "1970-01-01T00:00:00.000Z"
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    else:
+        parsed = parsed.astimezone(timezone.utc)
+    return parsed.strftime("%Y-%m-%dT%H:%M:%S.%f")[:23] + "Z"
+
+
 def build_stix_bundle(result: RunResult) -> dict[str, object]:
-    created = (result.finished_at or result.started_at or "1970-01-01T00:00:00")
+    created = _to_stix_timestamp(result.finished_at or result.started_at or "")
     identity_id = _stix_id("identity", f"identity:{result.target_name}")
     objects: list[dict[str, object]] = [
         {

@@ -90,6 +90,18 @@ def test_stix_exporter_writes_bundle_with_identity_and_observed_data(tmp_path):
     assert payload["type"] == "bundle"
 
 
+def test_stix_exporter_emits_utc_z_timestamps():
+    bundle = build_stix_bundle(_sample_result())
+    objects = bundle.get("objects", [])
+    created_values = [obj.get("created") for obj in objects if isinstance(obj, dict) and "created" in obj]
+    modified_values = [obj.get("modified") for obj in objects if isinstance(obj, dict) and "modified" in obj]
+
+    assert created_values
+    assert modified_values
+    assert all(isinstance(value, str) and value.endswith("Z") for value in created_values)
+    assert all(isinstance(value, str) and value.endswith("Z") for value in modified_values)
+
+
 def test_zip_exporter_packages_manifest_and_artifacts(tmp_path):
     result = _sample_result()
     html_path = tmp_path / "dossier.html"

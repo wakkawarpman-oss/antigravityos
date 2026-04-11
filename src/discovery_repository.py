@@ -216,10 +216,14 @@ class DiscoveryRepository:
         status_row = self.db.execute("SELECT status FROM profile_urls WHERE url = ?", (url,)).fetchone()
         return status_row["status"] if status_row else None
 
-    def update_profile_status(self, url_id: int, status: str, content_match: int = 0):
+    def update_profile_status(self, url_id: int, status: str, content_match: int = 0, ttl_hours: int = 24):
+        safe_ttl = max(1, int(ttl_hours))
         self.db.execute(
-            "UPDATE profile_urls SET status = ?, content_match = ?, checked_at = datetime('now') WHERE id = ?",
-            (status, content_match, url_id),
+            "UPDATE profile_urls "
+            "SET status = ?, content_match = ?, checked_at = datetime('now'), last_checked_at = datetime('now'), "
+            "valid_until = datetime('now', '+' || ? || ' hours') "
+            "WHERE id = ?",
+            (status, content_match, str(safe_ttl), url_id),
         )
         self.db.commit()
 

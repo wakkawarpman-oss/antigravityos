@@ -22,7 +22,7 @@ prelaunch:
       export HANNA_PRELAUNCH_OUT_DIR="${PRELAUNCH_BUNDLE_DIR}"
       export HANNA_PRELAUNCH_OUTPUT_DIR="${PRELAUNCH_BUNDLE_DIR}"
       export HANNA_PRELAUNCH_STRICT_BY_GATE=1
-      export HANNA_PRELAUNCH_REQUIRED_CHECKS="preflight,focused_regression,tor_policy"
+      export HANNA_PRELAUNCH_REQUIRED_CHECKS="preflight,focused_regression,tor_policy,stix_validation"
       export HANNA_TOR_ENABLED=1
       export HANNA_TOR_PROXY_URL="socks5h://127.0.0.1:9050"
       export HANNA_TOR_REQUIRE_SOCKS5H=1

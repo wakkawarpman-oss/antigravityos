@@ -115,6 +115,7 @@ def test_prelaunch_tor_policy_payload_can_be_required():
             "focused_regression": {"status": "pass"},
             "live_smoke": {"status": "not-run"},
             "tor_policy": {"status": "pass"},
+            "stix_validation": {"status": "not-run"},
             "full_rollout_rehearsal": {"status": "not-run"},
         }
     }

@@ -186,6 +186,11 @@ final_summary = {
           "path": "tor-policy.json" if run_tor_policy_check else None,
           "summary": tor_policy,
         },
+        "stix_validation": {
+          "enabled": run_full_rehearsal,
+          "status": status_map.get("optional-external-stix-validation", {}).get("status", "not-run") if run_full_rehearsal else "not-run",
+          "path": "full-rehearsal.stix-validation.json" if run_full_rehearsal else None,
+        },
         "full_rollout_rehearsal": {
             "enabled": run_full_rehearsal,
             "status": status_map.get("optional-full-rollout-rehearsal", {}).get("status", "not-run") if run_full_rehearsal else "not-run",
@@ -430,6 +435,59 @@ print(json.dumps(payload, indent=2, ensure_ascii=False))
 if payload["status"] != "pass":
     raise SystemExit(1)
 PY
+
+  run_step "Optional external STIX validation" \
+    env PRELAUNCH_OUT_DIR="$OUT_DIR" ROOT_DIR="$ROOT" "$PY_BIN" - <<'PY' > "$OUT_DIR/full-rehearsal.stix-validation.json" 2> "$OUT_DIR/full-rehearsal.stix-validation.err"
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+out_dir = Path(os.environ["PRELAUNCH_OUT_DIR"])
+root = Path(os.environ["ROOT_DIR"])
+metadata_path = out_dir / "full-rehearsal.metadata.json"
+validator_path = root / "scripts" / "validate_stix_bundle.py"
+
+if not metadata_path.exists():
+  raise SystemExit("missing rehearsal metadata export")
+
+metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+artifacts = metadata.get("artifacts", {}) if isinstance(metadata, dict) else {}
+exports = artifacts.get("exports", {}) if isinstance(artifacts, dict) else {}
+stix_path_raw = exports.get("stix") if isinstance(exports, dict) else None
+if not stix_path_raw:
+  raise SystemExit("missing STIX export path in rehearsal metadata")
+
+stix_path = Path(stix_path_raw)
+if not stix_path.exists():
+  raise SystemExit(f"missing STIX export file: {stix_path}")
+
+proc = subprocess.run(
+  [sys.executable, str(validator_path), str(stix_path), "--json-only"],
+  stdout=subprocess.PIPE,
+  stderr=subprocess.PIPE,
+  text=True,
+)
+
+stdout = (proc.stdout or "").strip()
+if stdout:
+  print(stdout)
+else:
+  print(json.dumps({
+    "status": "fail",
+    "path": str(stix_path),
+    "errors": ["validator produced no output"],
+    "warnings": [],
+    "object_count": 0,
+  }, ensure_ascii=False))
+
+if proc.returncode != 0:
+  stderr = (proc.stderr or "").strip()
+  if stderr:
+    print(stderr, file=sys.stderr)
+  raise SystemExit(proc.returncode)
+PY
 fi
 
 generate_final_summary
@@ -456,6 +514,7 @@ $( [[ "$RUN_LIVE_SMOKE" == "1" ]] && printf '%s\n' '- live-smoke.json / .err' )
 $( [[ "$RUN_FULL_REHEARSAL" == "1" ]] && printf '%s\n' '- full-rehearsal.runtime.json / .err' )
 $( [[ "$RUN_FULL_REHEARSAL" == "1" ]] && printf '%s\n' '- full-rehearsal.metadata.json' )
 $( [[ "$RUN_FULL_REHEARSAL" == "1" ]] && printf '%s\n' '- full-rehearsal.verification.json / .err' )
+$( [[ "$RUN_FULL_REHEARSAL" == "1" ]] && printf '%s\n' '- full-rehearsal.stix-validation.json / .err' )
 
 Interpretation:
 - Any non-empty *.err should be reviewed.

@@ -58,7 +58,7 @@ class ProfileVerifier:
             for future in as_completed(futures):
                 url_id, status = future.result()
                 ttl_hours = 24 if status in ("verified", "dead") else 12
-                self.engine.repo.update_profile_status(url_id, status)
+                self.engine.repo.update_profile_status(url_id, status, ttl_hours=ttl_hours)
         # Transferred to repo layer
 
     def reverify_expired(self, max_checks: int = 50, timeout: float = 5.0, proxy: Optional[str] = None) -> Dict[str, int]:
@@ -116,7 +116,7 @@ class ProfileVerifier:
                 else:
                     counts["unchanged"] += 1
                 ttl_hours = 24 if new_status in ("verified", "dead") else 12
-                self.engine.repo.update_profile_status(url_id, new_status)
+                self.engine.repo.update_profile_status(url_id, new_status, ttl_hours=ttl_hours)
         # Transferred to repo layer
         return counts
 
@@ -203,11 +203,12 @@ class ProfileVerifier:
                     counts["errors"] += 1
                 elif result == "verified":
                     counts["upgraded"] += 1
-                    self.engine.repo.update_profile_status(url_id, "verified", content_match=1)
+                    self.engine.repo.update_profile_status(url_id, "verified", content_match=1, ttl_hours=24)
                 elif result == "dead":
                     counts["killed"] += 1
-                    self.engine.repo.update_profile_status(url_id, "dead")
+                    self.engine.repo.update_profile_status(url_id, "dead", ttl_hours=24)
                 else:
+                    self.engine.repo.update_profile_status(url_id, "soft_match", ttl_hours=12)
                     counts["unchanged"] += 1
 
         # Transferred to repo layer

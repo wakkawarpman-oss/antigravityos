@@ -46,6 +46,7 @@ def _sample_summary(*, overall_status: str = "pass", failure_count: int = 0) -> 
             "focused_regression": {"status": "pass"},
             "live_smoke": {"enabled": False, "status": "not-run"},
             "tor_policy": {"enabled": False, "status": "not-run"},
+            "stix_validation": {"enabled": False, "status": "not-run"},
             "full_rollout_rehearsal": {"enabled": False, "status": "not-run"},
         },
     }
