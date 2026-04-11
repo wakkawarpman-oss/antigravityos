@@ -81,3 +81,8 @@ Source: `.cache/stress_test_report.json`
 - Expanded command aliases for terminal operators: direct `manual|aggregate|chain`, plus `clear`, `exit`, and `view next|prev`.
 - Updated in-cockpit command legend/help text to match new controls.
 - Added TUI regression tests for alias execution and view-cycle behavior.
+
+## Master Plan Execution Update (Adapter-wide OPSEC matrix)
+- Added registry-wide OPSEC matrix tests to verify all registered adapters enforce proxy requirement when strict policy is enabled.
+- Added registry-wide initialization coverage to verify all registered adapters can initialize under strict mode with an explicit proxy.
+- This closes the previous gap from spot-check OPSEC tests toward full adapter-surface policy validation.
