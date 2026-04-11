@@ -55,6 +55,18 @@ DEFAULT_BLOCK_COMMANDS: list[tuple[str, str]] = [
         "export_consistency",
         "pytest -q tests/test_exporters.py tests/test_stix_bundle_completeness.py tests/test_rehearsal_artifact_verifier.py",
     ),
+    (
+        "plan_drift_sync",
+        (
+            "python scripts/generate_plan_drift_report.py "
+            "--master-plan MASTER_PLAN_2000_WORDS.md "
+            "--checkpoint docs/CHECKPOINT_STATUS_2026-04-11.md "
+            "--output .cache/reports/plan-drift-report.json "
+            "&& python -c \"import json; import sys; "
+            "d=json.load(open('.cache/reports/plan-drift-report.json', 'r', encoding='utf-8')); "
+            "sys.exit(0 if d.get('drift_status') == 'ok' else 1)\""
+        ),
+    ),
 ]
 
 
@@ -207,7 +219,7 @@ def _calculate_risk_penalty(stages: list[StageResult], residual_risks: list[str]
     penalty = 0.0
     failing = [stage for stage in stages if stage.status != "pass"]
     for stage in failing:
-        if stage.name in {"full_guard", "contract_compatibility", "opsec_policy", "export_consistency"}:
+        if stage.name in {"full_guard", "contract_compatibility", "opsec_policy", "export_consistency", "plan_drift_sync"}:
             penalty += 0.35
         elif stage.name == "drift_check":
             penalty += 0.25
@@ -273,6 +285,18 @@ def _build_asymmetric_risk_register(stages: list[StageResult], residual_risks: l
             mitigation_cost="low",
             status=_status("drift_check"),
             detail="Workspace drift increases probability of partial/accidental push and rollback complexity.",
+        )
+    )
+    register.append(
+        AsymmetricRisk(
+            risk_id="R-PLAN-001",
+            category="governance",
+            impact="medium",
+            likelihood="high",
+            detectability="high",
+            mitigation_cost="low",
+            status=_status("plan_drift_sync"),
+            detail="Execution-vs-plan drift degrades release predictability and weakens audit traceability.",
         )
     )
 
@@ -350,6 +374,8 @@ def run_release_guard(
                 residual_risks.append("Contract compatibility failed; consumer-facing schemas may be broken.")
             elif check_name == "export_consistency":
                 residual_risks.append("Export consistency failed; evidence pack integrity is not guaranteed.")
+            elif check_name == "plan_drift_sync":
+                residual_risks.append("Master plan drift check failed; strategic documentation is out of sync with execution state.")
             else:
                 residual_risks.append(f"Blocking check failed: {check_name}.")
 
@@ -371,7 +397,8 @@ def run_release_guard(
     direct_verdict = "go" if all(stage.status == "pass" for stage in stages) else "no-go"
 
     high_impact_risk = any(
-        stage.name in {"full_guard", "drift_check", "opsec_policy", "contract_compatibility", "export_consistency"}
+        stage.name
+        in {"full_guard", "drift_check", "opsec_policy", "contract_compatibility", "export_consistency", "plan_drift_sync"}
         and stage.status != "pass"
         for stage in stages
     )

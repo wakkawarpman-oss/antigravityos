@@ -1,0 +1,50 @@
+name: Plan Drift Report
+
+on:
+  schedule:
+    - cron: '0 9 * * 2,5'
+  workflow_dispatch:
+
+jobs:
+  plan-drift-monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate plan-drift report
+        run: |
+          python scripts/generate_plan_drift_report.py \
+            --master-plan MASTER_PLAN_2000_WORDS.md \
+            --checkpoint docs/CHECKPOINT_STATUS_2026-04-11.md \
+            --output .cache/reports/plan-drift-report.json \
+            --markdown .cache/reports/plan-drift-report.md
+
+      - name: Enforce drift status
+        run: |
+          python - <<'PY'
+          import json
+          import sys
+          report = json.load(open('.cache/reports/plan-drift-report.json', 'r', encoding='utf-8'))
+          if report.get('drift_status') != 'ok':
+              print('plan drift detected')
+              print(json.dumps(report, ensure_ascii=False, indent=2))
+              sys.exit(2)
+          print('plan drift status: ok')
+          PY
+
+      - name: Upload plan-drift artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: plan-drift-report
+          path: |
+            .cache/reports/plan-drift-report.json
+            .cache/reports/plan-drift-report.md

@@ -96,3 +96,10 @@ Source: `.cache/stress_test_report.json`
 - Aggregate, chain, and manual runners now reset process-lifecycle counters at run start and attach lifecycle metrics into `RunResult.extra.process_lifecycle`.
 - Added regression assertions in runner test suites to ensure lifecycle telemetry is present and shape-stable in result metadata.
 - Added integration runtime smoke assertions so lifecycle telemetry visibility is enforced in manual and aggregate execution flows, not only unit-level runner tests.
+
+## Master Plan Execution Update (Plan drift control loop)
+- Added automated master-plan drift report (`make plan-drift-report`) that compares `MASTER_PLAN_2000_WORDS.md` against `Master Plan Execution Update` blocks in checkpoint status.
+- Added machine-readable and markdown report artifacts (`.cache/reports/plan-drift-report.json`, `.cache/reports/plan-drift-report.md`).
+- Synchronized `MASTER_PLAN_2000_WORDS.md` with all currently delivered execution-update blocks to eliminate strategy-vs-reality drift.
+- Added blocking `release-guard` check `plan_drift_sync` so release decisioning fails closed on master-plan drift.
+- Added scheduled CI workflow `.github/workflows/plan-drift-report.yml` to publish drift artifacts and fail on non-`ok` drift status.

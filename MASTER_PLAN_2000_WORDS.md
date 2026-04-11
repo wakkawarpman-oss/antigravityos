@@ -48,6 +48,32 @@
 3. Вичерпання квот freemium не блокує реліз, якщо baseline-профіль пройшов.
 4. Будь-який freemium-модуль повинен мати fallback на безкоштовний контур.
 
+### 4.0.1 Execution Sync Loop (2026-04-11)
+
+Щоб прибрати дрейф між стратегією і фактичним виконанням, вводиться обов'язковий цикл синхронізації:
+
+1. Оновлення виконання ведуться в checkpoint-документі.
+2. `MASTER_PLAN_2000_WORDS.md` синхронізується в межах того ж execution block перед push.
+3. Автоматичний звіт `make plan-drift-report` публікує machine-readable/markdown стан дрейфу.
+4. `release-guard` блокує реліз при `plan_drift_sync` fail.
+5. Scheduled CI lane (`plan-drift-report`) публікує drift-артефакти та fail-closed при `drift_status != ok`.
+
+Стан уже виконаних execution update блоків (джерело: `docs/CHECKPOINT_STATUS_2026-04-11.md`):
+
+1. Pre-release governance.
+2. Dependency reporting.
+3. Tool health lane.
+4. Tools cleanup lane.
+5. Freemium enrichment fallback lane.
+6. Strict module resolution + export parity.
+7. Process lifecycle observability.
+8. OPSEC proxy propagation hardening.
+9. TUI UX acceleration.
+10. Adapter-wide OPSEC matrix.
+11. Timeout burst lifecycle acceptance.
+12. Lifecycle telemetry in runner artifacts.
+13. Plan drift control loop.
+
 ### 4.1 Матриця елементів: сервіс оркестрації і ефективна взаємодія
 
 | Елемент | Статус у HANNA | Сервіс оркестрації | Контур ефективної взаємодії |
@@ -270,15 +296,15 @@
 
 1. Впровадити canary discipline і SLA-based auto-stop.
 2. Автоматизувати збір релізних артефактів у єдиному сховищі.
-3. Запровадити щотижневий dependency report.
-4. Підключити `dnsx` і `gau` через відповідні оркестратори з regression-покриттям.
+3. Завершено: щотижневий dependency report (CI schedule + локальний запуск).
+4. Завершено: `dnsx` і `gau` інтегровані в native-оркестрацію з regression-покриттям.
 
 ### Дні 61–90
 
 1. Провести контрольний «stress + prelaunch strict + canary» цикл.
 2. Виміряти тренд стабільності: кількість fail-гейтів, MTTR, частота rollback.
 3. Переглянути policy і зафіксувати версію процесу як стандарт команди.
-4. Запустити freemium enrichment lane (`shodan/censys`) у неблокуючому режимі з fallback на baseline.
+4. Завершено: freemium enrichment lane (`shodan/censys`) у неблокуючому режимі з fallback на baseline.
 5. Завершити пілот `DistributedQueueOrchestrator` (Celery+Redis) з rollback на локальний dispatcher.
 
 ## 9. Модель виконання для невеликої команди

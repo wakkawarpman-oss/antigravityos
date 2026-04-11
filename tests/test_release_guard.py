@@ -60,3 +60,23 @@ def test_run_release_guard_rejects_unmitigated_high_impact_risk(tmp_path: Path):
     assert result.ok is False
     assert result.asymmetric_verdict == "reject"
     assert any(risk.category == "opsec" and risk.status == "unmitigated" for risk in result.asymmetric_risks)
+
+
+def test_run_release_guard_flags_plan_drift_sync_failure(tmp_path: Path):
+    result = run_release_guard(
+        repo_root=tmp_path,
+        targeted_commands=["echo targeted-ok"],
+        full_guard_command="echo guard-ok",
+        drift_command="printf ''",
+        block_commands=[
+            ("opsec_policy", "echo opsec-ok"),
+            ("contract_compatibility", "echo contract-ok"),
+            ("export_consistency", "echo export-ok"),
+            ("plan_drift_sync", "false"),
+        ],
+    )
+
+    assert result.ok is False
+    assert result.post_block_decision == "no-go"
+    assert any(stage.name == "plan_drift_sync" and stage.status == "fail" for stage in result.stages)
+    assert any("Master plan drift check failed" in risk for risk in result.residual_risks)
