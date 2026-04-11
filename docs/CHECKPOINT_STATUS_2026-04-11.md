@@ -29,3 +29,4 @@ Source: `.cache/stress_test_report.json`
 - Consumer policy: if provenance namespace is unknown, treat artifact as incompatible and stop parsing.
 - CI guardrail: `quality-gates` workflow runs `python scripts/ci_verify_contract_provenance_smoke.py` to fail fast on provenance contract drift.
 - Diagnostic lane: non-blocking negative smoke runs with unknown namespace (`urn:hanna:contract-provenance:v99`) in expect-fail mode to verify fail-closed behavior remains active.
+- Deploy gate policy: `Production Deploy` now always requires `contract_provenance`; optional strict mode (`HANNA_DEPLOY_REQUIRE_FULL_REHEARSAL`) also requires `full_rollout_rehearsal`.

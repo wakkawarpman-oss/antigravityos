@@ -76,7 +76,8 @@
         "live_smoke",
         "tor_policy",
         "stix_validation",
-        "full_rollout_rehearsal"
+        "full_rollout_rehearsal",
+        "contract_provenance"
       ],
       "properties": {
         "preflight": {"type": "object"},
@@ -85,7 +86,8 @@
         "live_smoke": {"type": "object"},
         "tor_policy": {"type": "object"},
         "stix_validation": {"type": "object"},
-        "full_rollout_rehearsal": {"type": "object"}
+        "full_rollout_rehearsal": {"type": "object"},
+        "contract_provenance": {"type": "object"}
       },
       "additionalProperties": true
     }

@@ -17,6 +17,7 @@ KNOWN_CHECKS = (
     "tor_policy",
     "stix_validation",
     "full_rollout_rehearsal",
+    "contract_provenance",
 )
 
 

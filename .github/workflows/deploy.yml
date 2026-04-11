@@ -46,13 +46,35 @@ jobs:
           npm run production-readiness -- --skip-install
 
       - name: Prelaunch gate
+        env:
+          HANNA_DEPLOY_REQUIRE_FULL_REHEARSAL: ${{ vars.HANNA_DEPLOY_REQUIRE_FULL_REHEARSAL }}
+          HANNA_FULL_REHEARSAL_TARGET: ${{ vars.HANNA_FULL_REHEARSAL_TARGET }}
+          HANNA_FULL_REHEARSAL_MODULES: ${{ vars.HANNA_FULL_REHEARSAL_MODULES }}
         run: |
-          ./scripts/prelaunch_check.sh
-          SUMMARY="$(ls -1dt .cache/prelaunch/* | head -n1)/final-summary.json"
-          ./scripts/prelaunch_gate.sh "$SUMMARY" \
-            --require-check preflight \
-            --require-check smart_summary \
+          PRELAUNCH_GATE_ARGS=(
+            --require-check preflight
+            --require-check smart_summary
             --require-check focused_regression
+            --require-check contract_provenance
+          )
+
+          require_full_rehearsal="$(printf '%s' "${HANNA_DEPLOY_REQUIRE_FULL_REHEARSAL:-0}" | tr '[:upper:]' '[:lower:]')"
+          if [[ "$require_full_rehearsal" == "1" || "$require_full_rehearsal" == "true" || "$require_full_rehearsal" == "yes" ]]; then
+            if [[ -z "${HANNA_FULL_REHEARSAL_TARGET:-}" ]]; then
+              echo "HANNA_FULL_REHEARSAL_TARGET is required when HANNA_DEPLOY_REQUIRE_FULL_REHEARSAL is enabled" >&2
+              exit 2
+            fi
+            HANNA_RUN_FULL_REHEARSAL=1 \
+            HANNA_FULL_REHEARSAL_TARGET="$HANNA_FULL_REHEARSAL_TARGET" \
+            HANNA_FULL_REHEARSAL_MODULES="${HANNA_FULL_REHEARSAL_MODULES:-full-spectrum}" \
+            ./scripts/prelaunch_check.sh
+            PRELAUNCH_GATE_ARGS+=(--require-check full_rollout_rehearsal)
+          else
+            ./scripts/prelaunch_check.sh
+          fi
+
+          SUMMARY="$(ls -1dt .cache/prelaunch/* | head -n1)/final-summary.json"
+          ./scripts/prelaunch_gate.sh "$SUMMARY" "${PRELAUNCH_GATE_ARGS[@]}"
 
       - name: Build Docker image
         run: |

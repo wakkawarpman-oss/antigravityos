@@ -136,6 +136,29 @@ python3 scripts/analyze_release_verdict_with_logs.py \
 	--tor-policy --rc
 ```
 
+### Deploy Workflow Strict Toggle (Repo Variables)
+
+`Production Deploy` supports an optional strict prelaunch mode controlled by repository variables.
+
+Set these in GitHub repository settings: `Settings -> Secrets and variables -> Actions -> Variables`.
+
+Minimal baseline (default behavior):
+
+1. `HANNA_DEPLOY_REQUIRE_FULL_REHEARSAL=0`
+2. Deploy gate requires: `preflight`, `smart_summary`, `focused_regression`, `contract_provenance`.
+
+Strict rollout mode:
+
+1. `HANNA_DEPLOY_REQUIRE_FULL_REHEARSAL=1`
+2. `HANNA_FULL_REHEARSAL_TARGET=example.com` (required)
+3. `HANNA_FULL_REHEARSAL_MODULES=pd-infra-quick` (optional, defaults to `full-spectrum`)
+
+When strict mode is enabled:
+
+1. Deploy workflow runs prelaunch with `HANNA_RUN_FULL_REHEARSAL=1`.
+2. Gate additionally requires `full_rollout_rehearsal`.
+3. Missing `HANNA_FULL_REHEARSAL_TARGET` fails deploy gate immediately.
+
 ## 3. Optional Live Smoke
 
 To include the no-credential chain smoke used during release QA:

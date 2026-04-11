@@ -140,6 +140,20 @@ tor_policy = load_json("tor-policy.json")
 pytest_summary = parse_pytest_summary("pytest.txt")
 nonempty_err_count, nonempty_err_files = count_nonempty_err_files()
 
+contract_provenance_status = "not-run"
+contract_provenance_payload = None
+if run_full_rehearsal:
+  if isinstance(rehearsal_verification, dict):
+    contract_payload = rehearsal_verification.get("contract_provenance")
+    if isinstance(contract_payload, dict):
+      contract_provenance_payload = contract_payload
+      status = contract_payload.get("status")
+      contract_provenance_status = status if isinstance(status, str) else "unknown"
+    else:
+      contract_provenance_status = "unknown"
+  else:
+    contract_provenance_status = "unknown"
+
 final_summary = {
     "schema_version": 1,
     "bundle_root": str(out_dir),
@@ -200,6 +214,12 @@ final_summary = {
             "runtime_path": "full-rehearsal.runtime.json" if run_full_rehearsal else None,
             "verification_path": "full-rehearsal.verification.json" if run_full_rehearsal else None,
             "verification": rehearsal_verification,
+        },
+        "contract_provenance": {
+          "enabled": run_full_rehearsal,
+          "status": contract_provenance_status,
+          "path": "full-rehearsal.verification.json" if run_full_rehearsal else None,
+          "details": contract_provenance_payload,
         },
     },
 }
