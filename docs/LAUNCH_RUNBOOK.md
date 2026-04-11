@@ -48,6 +48,59 @@ Run the bundled verification workflow:
 ./scripts/prelaunch_check.sh
 ```
 
+Before every push, run the canonical pre-push guard cycle:
+
+```bash
+make release-guard
+```
+
+The command enforces this strict order:
+
+1. targeted tests,
+2. full sprint guard,
+3. blocking policy checks (`opsec_policy`, `contract_compatibility`, `export_consistency`),
+4. drift check excluding `tools/**`.
+
+Push is allowed only when all stages are green.
+If any stage fails, resolve the issue and rerun `make release-guard` before commit/push.
+
+### Mandatory Post-Block Control Layer
+
+After each implementation block and before any push, `make release-guard` must produce a post-block analysis report with all of the following.
+
+1. Direct logic verdict (binary):
+1. `targeted tests`
+2. `full guard`
+3. `drift check`
+4. `opsec_policy`
+5. `contract_compatibility`
+6. `export_consistency`
+
+2. Asymmetric logic verdict:
+1. false-green damage is treated as higher cost than false-red delay,
+2. OPSEC and contract failures are weighted highest,
+3. freemium degradation is visible in risk register but does not block baseline by itself.
+
+3. KPI arbitration and method ranking:
+1. methods compared: `conservative_patch`, `standard_patch`, `aggressive_refactor`,
+2. weighted KPI formula:
+
+$$
+KPI_{total} = \sum_{i=1}^{n} w_i \cdot s_i - \sum_{j=1}^{m} p_j
+$$
+
+3. release decision is `go` only when:
+1. direct verdict is `go`,
+2. asymmetric verdict is `accept`,
+3. best method KPI is above release threshold.
+
+4. Mandatory report fields:
+1. direct results per blocking check,
+2. asymmetric risk register (`impact`, `likelihood`, `detectability`, `mitigation_cost`),
+3. method ranking and selected method,
+4. final decision (`go` or `no-go`),
+5. residual risks and minimum-cost mitigation options.
+
 This creates a review bundle under `.cache/prelaunch/<timestamp>/` containing:
 
 - root wrapper smoke outputs
@@ -263,3 +316,13 @@ Watch these first:
 2. `missing_binary` growth after environment changes.
 3. incomplete artifact bundles.
 4. stale or oversized runtime directories under the active runs root.
+
+## 8. Final Reporting Contract
+
+Final operator/developer status reports must include all of the following:
+
+1. success/fail verdict,
+2. residual risks that remain after current fixes,
+3. mitigation options with the minimum safe next step.
+
+Do not publish "success only" summaries without residual risk context.
