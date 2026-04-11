@@ -19,3 +19,13 @@ Source: `.cache/audit_report.json`
 - P95 response: 199ms
 
 Source: `.cache/stress_test_report.json`
+
+## Contract Compatibility Rule (Phase 5)
+- Canonical provenance namespace: `urn:hanna:contract-provenance:v1`.
+- Contract versions are now explicit in all consumer-facing export surfaces:
+	- runtime summary / metadata: `adapter_result_schema_version`
+	- ZIP manifest: `provenance.contracts.run_result_schema_version`, `provenance.contracts.adapter_result_schema_version`
+	- STIX note: `x_hanna_provenance.contracts.*`
+- Consumer policy: if provenance namespace is unknown, treat artifact as incompatible and stop parsing.
+- CI guardrail: `quality-gates` workflow runs `python scripts/ci_verify_contract_provenance_smoke.py` to fail fast on provenance contract drift.
+- Diagnostic lane: non-blocking negative smoke runs with unknown namespace (`urn:hanna:contract-provenance:v99`) in expect-fail mode to verify fail-closed behavior remains active.

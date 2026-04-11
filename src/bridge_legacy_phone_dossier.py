@@ -14,16 +14,38 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Union, List, Dict, Tuple
 from services.report_renderer import ReportRenderer, strip_ansi, slug, profile_display_name
+from config import TOR_ENABLED, TOR_PROXY_URL
+from net import proxy_aware_request
 
 
 ANALYST_ID = "legacy-bridge"
-DEFAULT_API_TOKEN = os.getenv("OSINT_API_TOKEN", "legacy-bridge-local-dev-token")
+DEFAULT_API_TOKEN = os.getenv("OSINT_API_TOKEN", "").strip()
 ALLOWED_SCHEMES = {"http", "https"}
+_INSECURE_TOKEN_VALUES = {"legacy-bridge-local-dev-token", "changeme", "test", "dev"}
+
+
+def _resolve_api_token(api_token: str | None) -> str:
+    token = (api_token or "").strip()
+    if not token:
+        raise ValueError("OSINT API token is required. Set --api-token or OSINT_API_TOKEN.")
+    if token.lower() in _INSECURE_TOKEN_VALUES:
+        raise ValueError("Refusing insecure default API token value.")
+    return token
+
+
+def _resolve_bridge_proxy() -> str | None:
+    direct = os.getenv("HANNA_BRIDGE_PROXY", "").strip()
+    if direct:
+        return direct
+    if TOR_ENABLED:
+        return TOR_PROXY_URL
+    return None
 
 
 def api_request(base_url: str, method: str, path: str, payload: dict[str, Any] | None = None, api_token: str = DEFAULT_API_TOKEN) -> tuple[int, Any]:
     body = None
-    headers = {"Authorization": f"Bearer {api_token}"}
+    token = _resolve_api_token(api_token)
+    headers = {"Authorization": f"Bearer {token}"}
     if payload is not None:
         body = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"
@@ -31,17 +53,21 @@ def api_request(base_url: str, method: str, path: str, payload: dict[str, Any] |
     parsed_url = urllib.parse.urlparse(url)
     if (parsed_url.scheme or "").lower() not in ALLOWED_SCHEMES:
         raise ValueError(f"Disallowed scheme: {parsed_url.scheme}")
-    request = urllib.request.Request(url, data=body, headers=headers, method=method)
+    status, _resp_headers, raw = proxy_aware_request(
+        url=url,
+        method=method,
+        timeout=30,
+        proxy=_resolve_bridge_proxy(),
+        headers=headers,
+        data=body,
+        max_body_bytes=2_000_000,
+    )
+    if not raw:
+        return status, None
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310
-            raw = response.read().decode("utf-8")
-            return response.status, json.loads(raw) if raw else None
-    except urllib.error.HTTPError as exc:
-        raw = exc.read().decode("utf-8", errors="replace")
-        try:
-            return exc.code, json.loads(raw)
-        except json.JSONDecodeError:
-            return exc.code, {"error": raw}
+        return status, json.loads(raw)
+    except json.JSONDecodeError:
+        return status, {"error": raw}
 
 
 
@@ -497,6 +523,7 @@ def main() -> None:
     parser.add_argument("--api-token", default=DEFAULT_API_TOKEN, help="Bearer token for control-plane API access.")
     parser.add_argument("--output-html", help="Output HTML path. Defaults to runs/exports/html/dossiers/connected_<session>.html")
     args = parser.parse_args()
+    args.api_token = _resolve_api_token(args.api_token)
 
     meta_paths = [Path(item).expanduser().resolve() for item in args.meta_json]
     metas: list[dict[str, Any]] = []

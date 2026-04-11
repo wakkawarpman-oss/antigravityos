@@ -29,7 +29,7 @@ from typing import Any, Union, Optional, List, Dict, Tuple
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config import DEFAULT_DB_PATH, RUNS_ROOT
+from config import ADAPTER_RESULT_SCHEMA_VERSION, DEFAULT_DB_PATH, RUNS_ROOT
 from exporters import export_run_metadata_json, export_run_result_json, export_run_result_stix, export_run_result_zip
 from preflight import format_preflight_report, has_hard_failures, preflight_summary, run_preflight
 from registry import MODULE_PRESETS, MODULES, resolve_modules
@@ -111,6 +111,7 @@ def _parse_dossier_export_formats(value: Optional[str]) -> List[str]:
 def _build_run_metadata(result, exported: Dict[str, str]) -> Dict[str, object]:
     return {
         "schema_version": 1,
+        "adapter_result_schema_version": ADAPTER_RESULT_SCHEMA_VERSION,
         "target_name": result.target_name,
         "mode": result.mode,
         "started_at": result.started_at,

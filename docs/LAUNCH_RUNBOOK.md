@@ -24,6 +24,16 @@ Before rollout, freeze these surfaces:
 - export contract: HTML + metadata + STIX + ZIP
 - reset semantics: preserve or remove generated runtime state only through `rs`
 
+### Contract Compatibility Rule (Consumers)
+
+External consumers must treat contract provenance as the canonical compatibility gate.
+
+1. Read `adapter_result_schema_version` from runtime summary and metadata payloads.
+2. Read `provenance.namespace` and `provenance.contracts` from ZIP `manifest.json`.
+3. Read `x_hanna_provenance` from STIX `note` objects.
+4. Accept payloads only when namespace is `urn:hanna:contract-provenance:v1` and known schema versions are supported.
+5. If namespace is unknown, fail closed (mark artifact as incompatible) rather than guessing field semantics.
+
 ## 2. Mandatory Pre-Launch Check
 
 Run the bundled verification workflow:
@@ -152,6 +162,12 @@ The rehearsal writes:
 - `full-rehearsal.verification.json`
 
 `full-rehearsal.verification.json` is considered passing only if the generated HTML path exists and the exported `json`, `metadata`, `stix`, and `zip` files all exist.
+
+The same verification step now enforces contract provenance compatibility:
+
+1. Metadata and runtime summary must expose supported `adapter_result_schema_version`.
+2. ZIP `manifest.json` and STIX `note.x_hanna_provenance` must use `urn:hanna:contract-provenance:v1`.
+3. Unknown namespace or unsupported contract versions fail the rehearsal gate (fail closed).
 
 ## 4. Pass Criteria
 

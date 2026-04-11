@@ -15,7 +15,7 @@ Usage:
 """
 from __future__ import annotations
 
-import time
+import asyncio
 from datetime import datetime
 from pathlib import Path
 
@@ -23,7 +23,8 @@ from adapters.base import ReconHit
 from config import RUNS_ROOT
 from models import AdapterOutcome, RunResult
 from registry import resolve_modules
-from schedulers.lanes import LaneScheduler, dedup_and_confirm
+from schedulers.dispatcher import MultiLaneDispatcher
+from schedulers.lanes import dedup_and_confirm
 from worker import build_tasks
 
 
@@ -66,11 +67,11 @@ class AggregateRunner:
         outcomes: list[AdapterOutcome] = []
 
         Path(self.log_dir).mkdir(parents=True, exist_ok=True)
-        scheduled = LaneScheduler.dispatch(tasks=tasks, max_workers=self.max_workers, log_dir=self.log_dir, label="aggregate")
-        errors.extend(scheduled.errors)
-        modules_run = scheduled.modules_run
-        all_hits = scheduled.all_hits
-        for tr in scheduled.task_results:
+        dispatcher = MultiLaneDispatcher(max_parallel_tasks=self.max_workers)
+        all_hits = asyncio.run(dispatcher.run_tasks(tasks, label="aggregate"))
+        errors.extend(dispatcher.errors)
+        modules_run = list(dispatcher.modules_run)
+        for tr in dispatcher.task_results:
             outcomes.append(AdapterOutcome(
                 module_name=tr.module_name,
                 lane=tr.lane,

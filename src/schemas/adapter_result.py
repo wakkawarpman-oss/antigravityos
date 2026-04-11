@@ -8,7 +8,7 @@ Provides:
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -18,12 +18,36 @@ class AdapterResult(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    status: str = Field(..., min_length=1, description="Execution status: 'ok' | 'error' | 'skipped'")
+    status: Literal["ok", "error", "skipped"] = Field(
+        ..., description="Execution status: 'ok' | 'error' | 'skipped'"
+    )
     evidence: list[dict[str, Any]] = Field(default_factory=list, description="Raw or normalised evidence artifacts")
     observables: list[dict[str, Any]] = Field(default_factory=list, description="Extracted observables (phone, email, IP, …)")
     errors: list[str] = Field(default_factory=list, description="Human-readable error messages")
     timings: dict[str, float] = Field(default_factory=dict, description="Labelled timing measurements in seconds")
     opsec_flags: list[str] = Field(default_factory=list, description="Active OPSEC constraints for this result")
+
+
+_STATUS_ALIASES: dict[str, str] = {
+    "ok": "ok",
+    "success": "ok",
+    "passed": "ok",
+    "done": "ok",
+    "error": "error",
+    "failed": "error",
+    "fail": "error",
+    "timeout": "error",
+    "crash": "error",
+    "skipped": "skipped",
+    "skip": "skipped",
+    "not_run": "skipped",
+    "not-run": "skipped",
+}
+
+
+def _normalize_status(raw_status: Any) -> str:
+    text = str(raw_status).strip().lower()
+    return _STATUS_ALIASES.get(text, text)
 
 
 def normalize_legacy_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -42,7 +66,7 @@ def normalize_legacy_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     # status: legacy adapters used 'ok' (bool) or 'result'
     if "status" in payload:
-        out["status"] = str(payload["status"])
+        out["status"] = _normalize_status(payload["status"])
     elif "ok" in payload:
         out["status"] = "ok" if payload["ok"] else "error"
     elif payload.get("error"):

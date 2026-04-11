@@ -29,6 +29,28 @@ JWT contract suite must be green for:
 2. prelaunch summary gate is pass.
 3. health endpoint smoke is pass.
 
+## AI Focus and Hallucination Guard
+
+Run this guard before each sprint phase close and before merge:
+
+```bash
+python3 scripts/sprint_guard.py \
+	--scope 'src/**' \
+	--scope 'tests/**' \
+	--scope 'scripts/**' \
+	--scope 'docs/**' \
+	--scope 'package*.json' \
+	--scope 'requirements*.txt' \
+	--check-command 'python3 -m pip check' \
+	--check-command 'npm audit --omit=dev --audit-level=high' \
+	--check-command 'python3 -m pytest -q tests/test_cli_contracts.py tests/test_legacy_entrypoints.py tests/test_integration_runtime_smokes.py'
+```
+
+Guard enforces:
+1. changed files stay in sprint scope;
+2. placeholder/hallucination markers are blocked (`<your_...>`, `YOUR_API_KEY`, `REPLACE_ME`, `TODO: implement`);
+3. post-phase dependency/system audits are mandatory.
+
 ## Branch Protection Confirmation (GitHub Settings)
 
 Confirm explicitly before sprint execution:

@@ -16,13 +16,14 @@ def proxy_aware_request(
     timeout: float = 5.0,
     proxy: Optional[str] = None,
     headers: Optional[Dict[str, str]] = None,
+    data: Optional[bytes] = None,
     max_body_bytes: int = MAX_BODY_BYTES,
 ) -> Tuple[int, Dict[str, str], str]:
     """Execute HTTP request with optional proxy and capped body read, including exponential backoff."""
     if REQUIRE_PROXY and not proxy:
         raise RuntimeError("HANNA_REQUIRE_PROXY=1 but no proxy provided for HTTP request")
 
-    req = urllib.request.Request(url, headers=headers or {}, method=method)
+    req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
     opener = urllib.request.build_opener(
         urllib.request.ProxyHandler({"http": proxy, "https": proxy})
     ) if proxy else urllib.request.build_opener()
@@ -41,8 +42,14 @@ def proxy_aware_request(
         except urllib.error.HTTPError as exc:
             # 5xx responses might be retriable, 4xx generally are not
             code = int(exc.code)
+            err_headers = {k: v for k, v in getattr(exc, "headers", {}).items()} if getattr(exc, "headers", None) else {}
+            err_body = ""
+            try:
+                err_body = exc.read(max_body_bytes).decode("utf-8", errors="replace")
+            except Exception:
+                err_body = ""
             if code < 500 and code != 429:
-                return code, {}, ""
+                return code, err_headers, err_body
         except (urllib.error.URLError, OSError, TimeoutError) as exc:
             code = 0
         

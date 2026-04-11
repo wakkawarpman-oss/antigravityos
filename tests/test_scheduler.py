@@ -104,3 +104,24 @@ def test_async_dispatcher_enforces_worker_timeout_for_hanging_task():
     assert hits == []
     assert any(err.get("module") == "hanging" and err.get("error_kind") == "timeout" for err in dispatcher.errors)
     assert elapsed < 0.2
+
+
+def test_lane_scheduler_shutdown_avoids_private_executor_internals():
+    class _Pool:
+        @property
+        def _processes(self):  # pragma: no cover - should never be touched
+            raise AssertionError("private executor internals must not be accessed")
+
+        def __init__(self):
+            self.shutdown_calls = []
+
+        def shutdown(self, wait=False, cancel_futures=False):
+            self.shutdown_calls.append({"wait": wait, "cancel_futures": cancel_futures})
+
+    events = []
+    pool = _Pool()
+
+    LaneScheduler._shutdown_pool(pool, events.append, label="test", lane="fast")
+
+    assert pool.shutdown_calls == [{"wait": False, "cancel_futures": True}]
+    assert any(event.get("type") == "scheduler_pool_shutdown" for event in events)

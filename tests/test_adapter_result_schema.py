@@ -81,6 +81,11 @@ class TestAdapterResultInvalid:
         with pytest.raises(ValidationError):
             AdapterResult(status="ok", timings="not-a-dict")
 
+    def test_unknown_status_raises(self):
+        from pydantic import ValidationError
+        with pytest.raises(ValidationError):
+            AdapterResult(status="running")
+
 
 # ---------------------------------------------------------------------------
 # normalize_legacy_payload
@@ -116,6 +121,18 @@ class TestNormalizeLegacyPayload:
     def test_legacy_elapsed_sec_mapped_to_timings(self):
         result = normalize_legacy_payload({"status": "ok", "elapsed_sec": 2.5})
         assert result["timings"] == {"elapsed_sec": 2.5}
+
+    def test_legacy_success_status_normalized_to_ok(self):
+        result = normalize_legacy_payload({"status": "success"})
+        assert result["status"] == "ok"
+
+    def test_legacy_failed_status_normalized_to_error(self):
+        result = normalize_legacy_payload({"status": "failed"})
+        assert result["status"] == "error"
+
+    def test_legacy_skip_status_normalized_to_skipped(self):
+        result = normalize_legacy_payload({"status": "not_run"})
+        assert result["status"] == "skipped"
 
     def test_empty_payload_gets_defaults(self):
         result = normalize_legacy_payload({})

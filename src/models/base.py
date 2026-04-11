@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Any, Optional, Union, List, Dict, Set, Tuple
 
 from adapters.base import ReconHit, ReconReport
+from config import ADAPTER_RESULT_SCHEMA_VERSION, RUN_RESULT_SCHEMA_VERSION
 
 
 @dataclass
@@ -96,6 +97,7 @@ class RunResult:
         missing_binary_count = sum(1 for _module, _message, kind in error_entries if kind == "missing_binary")
         dependency_unavailable_count = sum(1 for _module, _message, kind in error_entries if kind == "dependency_unavailable")
         worker_crash_count = sum(1 for _module, _message, kind in error_entries if kind == "worker_crash")
+        cancelled_on_shutdown_count = sum(1 for _module, _message, kind in error_entries if kind == "cancelled_on_shutdown")
         failed_count = max(
             len(error_entries)
             - timeout_count
@@ -103,6 +105,7 @@ class RunResult:
             - missing_binary_count
             - dependency_unavailable_count
             - worker_crash_count,
+            - cancelled_on_shutdown_count,
             0,
         )
         exports = self.extra.get("exports", {}) if isinstance(self.extra.get("exports", {}), dict) else {}
@@ -110,6 +113,7 @@ class RunResult:
         return {
             "target_name": self.target_name,
             "mode": self.mode,
+            "adapter_result_schema_version": ADAPTER_RESULT_SCHEMA_VERSION,
             "queued": queued,
             "completed": self.success_count,
             "failed": failed_count,
@@ -118,13 +122,15 @@ class RunResult:
             "missing_binary": missing_binary_count,
             "dependency_unavailable": dependency_unavailable_count,
             "worker_crash": worker_crash_count,
+            "cancelled_on_shutdown": cancelled_on_shutdown_count,
             "exports": sorted(exports.keys()),
             "report_mode": self.extra.get("report_mode"),
         }
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 1,
+            "schema_version": RUN_RESULT_SCHEMA_VERSION,
+            "adapter_result_schema_version": ADAPTER_RESULT_SCHEMA_VERSION,
             "target_name": self.target_name,
             "mode": self.mode,
             "modules_run": self.modules_run,
@@ -170,7 +176,7 @@ class RunResult:
             f"failed={runtime['failed']}  timed_out={runtime['timed_out']}  "
             f"skipped_missing_credentials={runtime['skipped_missing_credentials']}  "
             f"missing_binary={runtime['missing_binary']}  dependency_unavailable={runtime['dependency_unavailable']}  "
-            f"worker_crash={runtime['worker_crash']}"
+            f"worker_crash={runtime['worker_crash']}  cancelled_on_shutdown={runtime['cancelled_on_shutdown']}"
         )
         lines.append(runtime_line)
         if runtime["exports"]:

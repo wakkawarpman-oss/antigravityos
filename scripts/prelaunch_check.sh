@@ -390,51 +390,7 @@ if [[ "$RUN_FULL_REHEARSAL" == "1" ]]; then
     '
 
   run_step "Optional rehearsal artifact verification" \
-    env PRELAUNCH_OUT_DIR="$OUT_DIR" "$PY_BIN" - <<'PY' > "$OUT_DIR/full-rehearsal.verification.json" 2> "$OUT_DIR/full-rehearsal.verification.err"
-import json
-import os
-from pathlib import Path
-
-out_dir = Path(os.environ["PRELAUNCH_OUT_DIR"])
-metadata_path = out_dir / "full-rehearsal.metadata.json"
-runtime_path = out_dir / "full-rehearsal.runtime.json"
-
-if not metadata_path.exists():
-    raise SystemExit("missing rehearsal metadata export")
-if not runtime_path.exists():
-    raise SystemExit("missing rehearsal runtime summary")
-
-metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-runtime = json.loads(runtime_path.read_text(encoding="utf-8"))
-artifacts = metadata.get("artifacts", {})
-exports = artifacts.get("exports", {}) if isinstance(artifacts, dict) else {}
-output_path = artifacts.get("output_path") if isinstance(artifacts, dict) else None
-
-required_export_keys = ["json", "stix", "zip"]
-missing_keys = [key for key in required_export_keys if key not in exports]
-existing = {key: Path(value).exists() for key, value in exports.items()}
-html_exists = bool(output_path and Path(output_path).exists())
-metadata_exists = metadata_path.exists()
-
-payload = {
-  "status": "pass" if metadata_exists and not missing_keys and all(existing.values()) and html_exists else "fail",
-    "target_name": metadata.get("target_name"),
-    "modules_run": metadata.get("modules_run", []),
-    "runtime_summary": runtime,
-    "artifacts": {
-    "metadata_path": str(metadata_path),
-    "metadata_path_exists": metadata_exists,
-        "output_path": output_path,
-        "output_path_exists": html_exists,
-        "exports": exports,
-        "existing": existing,
-        "missing_export_keys": missing_keys,
-    },
-}
-print(json.dumps(payload, indent=2, ensure_ascii=False))
-if payload["status"] != "pass":
-    raise SystemExit(1)
-PY
+    "$PY_BIN" "$ROOT/scripts/verify_rehearsal_artifacts.py" "$OUT_DIR" > "$OUT_DIR/full-rehearsal.verification.json" 2> "$OUT_DIR/full-rehearsal.verification.err"
 
   run_step "Optional external STIX validation" \
     env PRELAUNCH_OUT_DIR="$OUT_DIR" ROOT_DIR="$ROOT" "$PY_BIN" - <<'PY' > "$OUT_DIR/full-rehearsal.stix-validation.json" 2> "$OUT_DIR/full-rehearsal.stix-validation.err"

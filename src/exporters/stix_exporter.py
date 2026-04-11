@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from config import ADAPTER_RESULT_SCHEMA_VERSION, CONTRACT_PROVENANCE_NAMESPACE, RUN_RESULT_SCHEMA_VERSION
 from models import RunResult
 
 
@@ -43,6 +44,13 @@ def _to_stix_timestamp(value: str) -> str:
 def build_stix_bundle(result: RunResult) -> dict[str, object]:
     created = _to_stix_timestamp(result.finished_at or result.started_at or "")
     identity_id = _stix_id("identity", f"identity:{result.target_name}")
+    contract_provenance = {
+        "namespace": CONTRACT_PROVENANCE_NAMESPACE,
+        "contracts": {
+            "run_result_schema_version": RUN_RESULT_SCHEMA_VERSION,
+            "adapter_result_schema_version": ADAPTER_RESULT_SCHEMA_VERSION,
+        },
+    }
     objects: list[dict[str, object]] = [
         {
             "type": "identity",
@@ -110,8 +118,10 @@ def build_stix_bundle(result: RunResult) -> dict[str, object]:
             "id": _stix_id("note", f"note:{result.target_name}:{created}"),
             "created": created,
             "modified": created,
+            "x_hanna_provenance": contract_provenance,
             "content": json.dumps(
                 {
+                    "provenance": contract_provenance,
                     "mode": result.mode,
                     "modules_run": result.modules_run,
                     "errors": result.errors,

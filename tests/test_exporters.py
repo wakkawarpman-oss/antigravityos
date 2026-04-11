@@ -41,6 +41,7 @@ def test_json_exporter_writes_run_result_payload(tmp_path):
 
     assert path.exists()
     assert payload["schema_version"] == 1
+    assert payload["adapter_result_schema_version"] == 1
     assert payload["target_name"] == "Test Target"
     assert payload["all_hits"][0]["value"] == "user@example.com"
 
@@ -48,6 +49,7 @@ def test_json_exporter_writes_run_result_payload(tmp_path):
 def test_metadata_exporter_writes_run_metadata_payload(tmp_path):
     path = export_run_metadata_json(
         {
+            "adapter_result_schema_version": 1,
             "runtime_summary": {"mode": "aggregate", "worker_crash": 1},
             "artifacts": {"exports": {"json": "/tmp/result.json"}},
         },
@@ -59,6 +61,7 @@ def test_metadata_exporter_writes_run_metadata_payload(tmp_path):
     payload = json.loads(path.read_text(encoding="utf-8"))
 
     assert path.exists()
+    assert payload["adapter_result_schema_version"] == 1
     assert payload["runtime_summary"]["worker_crash"] == 1
     assert payload["artifacts"]["exports"]["json"] == "/tmp/result.json"
 
@@ -84,9 +87,15 @@ def test_stix_exporter_writes_bundle_with_identity_and_observed_data(tmp_path):
     payload = json.loads(path.read_text(encoding="utf-8"))
 
     object_types = {obj["type"] for obj in bundle["objects"]}
+    note_objects = [obj for obj in bundle["objects"] if obj.get("type") == "note"]
     assert bundle["type"] == "bundle"
     assert "identity" in object_types
     assert "observed-data" in object_types
+    assert note_objects
+    provenance = note_objects[0]["x_hanna_provenance"]
+    assert provenance["namespace"] == "urn:hanna:contract-provenance:v1"
+    assert provenance["contracts"]["run_result_schema_version"] == 1
+    assert provenance["contracts"]["adapter_result_schema_version"] == 1
     assert payload["type"] == "bundle"
 
 
@@ -124,6 +133,10 @@ def test_zip_exporter_packages_manifest_and_artifacts(tmp_path):
         manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
         assert manifest["target_name"] == "Test Target"
         assert manifest["report_mode"] == "shareable"
+        assert manifest["adapter_result_schema_version"] == 1
+        assert manifest["provenance"]["namespace"] == "urn:hanna:contract-provenance:v1"
+        assert manifest["provenance"]["contracts"]["run_result_schema_version"] == 1
+        assert manifest["provenance"]["contracts"]["adapter_result_schema_version"] == 1
         assert len(manifest["artifacts"]) >= 4
         assert any(item["name"] == "logs/ghunt.log" for item in manifest["artifacts"])
 

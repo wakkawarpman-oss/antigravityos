@@ -54,7 +54,9 @@ class MultiLaneDispatcher:
         }
         self.all_hits: List[ReconHit] = []
         self.errors: List[Dict[str, Any]] = []
-        self.modules_run: Set[str] = set()
+        self.modules_run: List[str] = []
+        self._seen_modules: Set[str] = set()
+        self.task_results: List[TaskResult] = []
 
     def _emit(self, payload: Dict[str, Any]) -> None:
         if self.event_callback:
@@ -121,7 +123,9 @@ class MultiLaneDispatcher:
         """Excutes a single ReconTask, supporting both async and sync adapters."""
         t0 = time.monotonic()
         mod_name = task.module_name
-        self.modules_run.add(mod_name)
+        if mod_name not in self._seen_modules:
+            self.modules_run.append(mod_name)
+            self._seen_modules.add(mod_name)
 
         self._emit({
             "type": "task_started",
@@ -139,6 +143,7 @@ class MultiLaneDispatcher:
             )
 
             hit_count = 0
+            task_hits: List[ReconHit] = []
 
             async def _stream_hits() -> None:
                 nonlocal hit_count
@@ -150,6 +155,7 @@ class MultiLaneDispatcher:
                     task.known_usernames
                 ):
                     hit_count += 1
+                    task_hits.append(hit)
                     self.all_hits.append(hit)
 
                     # EMIT HIT IMMEDIATELY TO UI
@@ -175,6 +181,17 @@ class MultiLaneDispatcher:
                 "elapsed_sec": round(elapsed, 2),
                 "hit_count": hit_count,
             })
+            self.task_results.append(
+                TaskResult(
+                    module_name=mod_name,
+                    lane=task.lane,
+                    hits=task_hits,
+                    error=None,
+                    error_kind=None,
+                    elapsed_sec=elapsed,
+                    raw_log_path="",
+                )
+            )
 
         except asyncio.TimeoutError:
             elapsed = time.monotonic() - t0
@@ -201,6 +218,17 @@ class MultiLaneDispatcher:
                 **tor_result,
             })
             log.error("[%s] Task timeout: %s", mod_name, msg)
+            self.task_results.append(
+                TaskResult(
+                    module_name=mod_name,
+                    lane=task.lane,
+                    hits=[],
+                    error=msg,
+                    error_kind="timeout",
+                    elapsed_sec=elapsed,
+                    raw_log_path="",
+                )
+            )
 
         except Exception as exc:
             elapsed = time.monotonic() - t0
@@ -227,3 +255,14 @@ class MultiLaneDispatcher:
                 **tor_result,
             })
             log.error("[%s] Task failed: %s", mod_name, err_msg)
+            self.task_results.append(
+                TaskResult(
+                    module_name=mod_name,
+                    lane=task.lane,
+                    hits=[],
+                    error=err_msg,
+                    error_kind="adapter_error",
+                    elapsed_sec=elapsed,
+                    raw_log_path="",
+                )
+            )

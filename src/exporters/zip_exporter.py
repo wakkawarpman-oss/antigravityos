@@ -7,6 +7,7 @@ import re
 import zipfile
 from pathlib import Path
 
+from config import ADAPTER_RESULT_SCHEMA_VERSION, CONTRACT_PROVENANCE_NAMESPACE, RUN_RESULT_SCHEMA_VERSION
 from exporters.json_exporter import export_run_result_json
 from exporters.stix_exporter import export_run_result_stix
 from models import RunResult
@@ -143,6 +144,14 @@ def export_run_result_zip(
         "target_name": result.target_name,
         "mode": result.mode,
         "report_mode": report_mode,
+        "adapter_result_schema_version": ADAPTER_RESULT_SCHEMA_VERSION,
+        "provenance": {
+            "namespace": CONTRACT_PROVENANCE_NAMESPACE,
+            "contracts": {
+                "run_result_schema_version": RUN_RESULT_SCHEMA_VERSION,
+                "adapter_result_schema_version": ADAPTER_RESULT_SCHEMA_VERSION,
+            },
+        },
         "artifacts": [],
     }
 

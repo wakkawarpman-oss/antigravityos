@@ -286,15 +286,57 @@ class LaneScheduler:
                                 },
                             )
             finally:
-                if hasattr(pool, "_processes"):
-                    import os
-                    import signal
-                    for pid in list(pool._processes.keys()):
-                        try:
-                            os.kill(pid, signal.SIGKILL)
-                        except OSError:
-                            pass
-                pool.shutdown(wait=False, cancel_futures=True)
+                pending_cancelled = 0
+                cancelled_modules: list[str] = []
+                if pending:
+                    pending_before_shutdown = len(pending)
+                    for fut in list(pending):
+                        task = future_map.get(fut)
+                        if fut.cancel() and task is not None:
+                            pending_cancelled += 1
+                            pending.discard(fut)
+                            cancelled_modules.append(task.module_name)
+                            msg = "CANCELLED_ON_SHUTDOWN"
+                            result.errors.append(
+                                {
+                                    "module": task.module_name,
+                                    "error": msg,
+                                    "error_kind": "cancelled_on_shutdown",
+                                }
+                            )
+                            result.task_results.append(
+                                TaskResult(
+                                    module_name=task.module_name,
+                                    lane=task.lane,
+                                    hits=[],
+                                    error=msg,
+                                    error_kind="cancelled_on_shutdown",
+                                    elapsed_sec=0.0,
+                                    raw_log_path="",
+                                )
+                            )
+                            LaneScheduler._emit(
+                                event_callback,
+                                {
+                                    "type": "task_cancelled_on_shutdown",
+                                    "label": label,
+                                    "lane": task.lane,
+                                    "module": task.module_name,
+                                    "error": msg,
+                                },
+                            )
+                    LaneScheduler._emit(
+                        event_callback,
+                        {
+                            "type": "scheduler_pending_cancelled",
+                            "label": label,
+                            "lane": lane_name,
+                            "pending_before_shutdown": pending_before_shutdown,
+                            "pending_cancelled": pending_cancelled,
+                            "modules_cancelled": cancelled_modules,
+                        },
+                    )
+                LaneScheduler._shutdown_pool(pool, event_callback, label=label, lane=lane_name)
 
             lane_ok = sum(1 for tr in result.task_results if tr.lane == lane_name and not tr.error)
             print(f"  {prefix}{lane_name.upper()} LANE complete  |  {lane_ok}/{len(lane_tasks)} task(s) finished cleanly")
@@ -336,6 +378,38 @@ class LaneScheduler:
     def _emit(event_callback: Callable[[dict], None] | None, payload: dict) -> None:
         if event_callback:
             event_callback(payload)
+
+    @staticmethod
+    def _shutdown_pool(
+        pool: ProcessPoolExecutor,
+        event_callback: Callable[[dict], None] | None,
+        *,
+        label: str,
+        lane: str,
+    ) -> None:
+        """Best-effort pool shutdown without touching private executor internals."""
+        try:
+            pool.shutdown(wait=False, cancel_futures=True)
+            LaneScheduler._emit(
+                event_callback,
+                {
+                    "type": "scheduler_pool_shutdown",
+                    "label": label,
+                    "lane": lane,
+                    "mode": "non_blocking_cancel_futures",
+                },
+            )
+        except TypeError:
+            pool.shutdown(wait=False)
+            LaneScheduler._emit(
+                event_callback,
+                {
+                    "type": "scheduler_pool_shutdown",
+                    "label": label,
+                    "lane": lane,
+                    "mode": "non_blocking_legacy",
+                },
+            )
 
 
 def dedup_and_confirm(all_hits: list[ReconHit]) -> tuple[list[ReconHit], list[ReconHit]]:

@@ -103,7 +103,7 @@ class DiscoveryRepository:
             "ON CONFLICT(obs_type, value) DO UPDATE SET "
             "corroboration_count = corroboration_count + 1, "
             "tier = CASE WHEN excluded.is_original_target = 1 OR excluded.tier = 'confirmed' THEN 'confirmed' "
-            "WHEN corroboration_count >= 2 THEN 'probable' ELSE tier END",
+            "WHEN corroboration_count + 1 >= 2 THEN 'probable' ELSE tier END",
             (obs_type, value, raw, source_tool, source_target, source_file, depth, 1 if is_original_target else 0, tier),
         )
         self.db.commit()
@@ -118,7 +118,7 @@ class DiscoveryRepository:
     def update_corroboration(self, obs_type: str, value: str, source_tool: str):
         self.db.execute(
             "UPDATE observables SET corroboration_count = corroboration_count + 1, "
-            "tier = CASE WHEN corroboration_count >= 2 THEN 'probable' ELSE tier END "
+            "tier = CASE WHEN corroboration_count + 1 >= 2 THEN 'probable' ELSE tier END "
             "WHERE obs_type = ? AND value = ? AND source_tool != ?",
             (obs_type, value, source_tool),
         )

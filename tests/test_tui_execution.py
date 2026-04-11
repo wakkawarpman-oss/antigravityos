@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from adapters.base import ReconHit, ReconReport
-from schedulers.lanes import SchedulerResult
+from worker import TaskResult
 from tui.execution import TUIExecutionConfig, run_mode
 
 
@@ -64,15 +64,26 @@ def test_run_mode_aggregate_emits_scheduler_driven_module_events(monkeypatch):
     monkeypatch.setattr(execution_mod, "run_preflight", lambda modules=None: [])
     monkeypatch.setattr(execution_mod, "build_tasks", lambda *args, **kwargs: ([], []))
 
-    def _dispatch(**kwargs):
-        callback = kwargs.get("event_callback")
-        callback({"type": "lane_started", "lane": "fast", "task_count": 1})
-        callback({"type": "task_queued", "lane": "fast", "module": "stub_aggregate", "priority": 1})
-        callback({"type": "task_done", "lane": "fast", "module": "stub_aggregate", "hit_count": 1, "elapsed_sec": 0.1})
-        callback({"type": "lane_complete", "lane": "fast", "ok_count": 1, "task_count": 1})
-        return SchedulerResult(all_hits=[hit], modules_run=["stub_aggregate"], errors=[], task_results=[])
+    async def _run_tasks(self, tasks, label=""):
+        self._emit({"type": "task_queued", "lane": "fast", "module": "stub_aggregate", "priority": 1})
+        self._emit({"type": "task_done", "lane": "fast", "module": "stub_aggregate", "hit_count": 1, "elapsed_sec": 0.1})
+        self._emit({"type": "lane_complete", "lane": "fast", "ok_count": 1, "task_count": 1})
+        self.modules_run = ["stub_aggregate"]
+        self.errors = []
+        self.task_results = [
+            TaskResult(
+                module_name="stub_aggregate",
+                lane="fast",
+                hits=[hit],
+                error=None,
+                error_kind=None,
+                elapsed_sec=0.1,
+                raw_log_path="",
+            )
+        ]
+        return [hit]
 
-    monkeypatch.setattr(execution_mod.LaneScheduler, "dispatch", _dispatch)
+    monkeypatch.setattr(execution_mod.MultiLaneDispatcher, "run_tasks", _run_tasks)
     monkeypatch.setattr(execution_mod, "_export_artifacts", lambda result, config: {})
 
     events: list[dict] = []

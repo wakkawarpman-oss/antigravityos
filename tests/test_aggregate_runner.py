@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from adapters.base import ReconHit
 from runners.aggregate import AggregateRunner
-from schedulers.lanes import SchedulerResult
+from worker import TaskResult
 
 
 def test_aggregate_runner_dedup_and_cross_confirm(monkeypatch):
@@ -24,11 +24,13 @@ def test_aggregate_runner_dedup_and_cross_confirm(monkeypatch):
     )
 
     monkeypatch.setattr(aggregate_mod, "build_tasks", lambda *args, **kwargs: ([], []))
-    monkeypatch.setattr(
-        aggregate_mod.LaneScheduler,
-        "dispatch",
-        lambda **kwargs: SchedulerResult(all_hits=[hit_a, hit_b], modules_run=["mod_a", "mod_b"], errors=[], task_results=[]),
-    )
+    async def _fake_run_tasks(self, tasks, label=""):
+        self.modules_run = ["mod_a", "mod_b"]
+        self.errors = []
+        self.task_results = []
+        return [hit_a, hit_b]
+
+    monkeypatch.setattr(aggregate_mod.MultiLaneDispatcher, "run_tasks", _fake_run_tasks)
 
     runner = AggregateRunner()
     result = runner.run(target_name="target", modules=["mod_a", "mod_b"])
@@ -42,19 +44,25 @@ def test_aggregate_runner_dedup_and_cross_confirm(monkeypatch):
 
 def test_aggregate_runner_runtime_summary_tracks_timeouts(monkeypatch):
     import runners.aggregate as aggregate_mod
-    from worker import TaskResult
 
     monkeypatch.setattr(aggregate_mod, "build_tasks", lambda *args, **kwargs: ([], []))
-    monkeypatch.setattr(
-        aggregate_mod.LaneScheduler,
-        "dispatch",
-        lambda **kwargs: SchedulerResult(
-            all_hits=[],
-            modules_run=["mod_timeout"],
-            errors=[{"module": "mod_timeout", "error": "TIMEOUT (60s)", "error_kind": "timeout"}],
-            task_results=[TaskResult(module_name="mod_timeout", lane="fast", hits=[], error="TIMEOUT (60s)", error_kind="timeout", elapsed_sec=60.0, raw_log_path="")],
-        ),
-    )
+    async def _fake_run_tasks(self, tasks, label=""):
+        self.modules_run = ["mod_timeout"]
+        self.errors = [{"module": "mod_timeout", "error": "TIMEOUT (60s)", "error_kind": "timeout"}]
+        self.task_results = [
+            TaskResult(
+                module_name="mod_timeout",
+                lane="fast",
+                hits=[],
+                error="TIMEOUT (60s)",
+                error_kind="timeout",
+                elapsed_sec=60.0,
+                raw_log_path="",
+            )
+        ]
+        return []
+
+    monkeypatch.setattr(aggregate_mod.MultiLaneDispatcher, "run_tasks", _fake_run_tasks)
 
     runner = AggregateRunner()
     result = runner.run(target_name="target", modules=["mod_timeout"])

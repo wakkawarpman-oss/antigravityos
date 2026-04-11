@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -19,7 +20,8 @@ from exporters import export_run_result_json, export_run_result_stix, export_run
 from models import AdapterOutcome, RunResult
 from preflight import format_preflight_report, has_hard_failures, run_preflight
 from registry import MODULE_LANE, MODULES, resolve_modules
-from schedulers.lanes import LaneScheduler, dedup_and_confirm
+from schedulers.dispatcher import MultiLaneDispatcher
+from schedulers.lanes import dedup_and_confirm
 from worker import build_tasks
 
 
@@ -149,15 +151,13 @@ def _run_aggregate(config: TUIExecutionConfig, modules: list[str], event_sink: E
         10.0,
         config.leak_dir,
     )
-    scheduled = LaneScheduler.dispatch(
-        tasks=tasks,
-        max_workers=config.workers,
-        log_dir=str(RUNS_ROOT / "logs"),
-        label="tui-aggregate",
+    dispatcher = MultiLaneDispatcher(
+        max_parallel_tasks=config.workers,
         event_callback=lambda payload: _emit_scheduler_event(event_sink, payload),
     )
-    errors.extend(scheduled.errors)
-    deduped, cross_confirmed = dedup_and_confirm(scheduled.all_hits)
+    all_hits = asyncio.run(dispatcher.run_tasks(tasks, label="tui-aggregate"))
+    errors.extend(dispatcher.errors)
+    deduped, cross_confirmed = dedup_and_confirm(all_hits)
     outcomes = [
         AdapterOutcome(
             module_name=item.module_name,
@@ -167,13 +167,13 @@ def _run_aggregate(config: TUIExecutionConfig, modules: list[str], event_sink: E
             elapsed_sec=item.elapsed_sec,
             log_path=item.raw_log_path,
         )
-        for item in scheduled.task_results
+        for item in dispatcher.task_results
     ]
     known_set = set(config.known_phones)
     return RunResult(
         target_name=config.target,
         mode="aggregate",
-        modules_run=scheduled.modules_run,
+        modules_run=list(dispatcher.modules_run),
         outcomes=outcomes,
         all_hits=deduped,
         cross_confirmed=cross_confirmed,
@@ -309,18 +309,16 @@ def _run_deep_recon_live(
         10.0,
         config.leak_dir,
     )
-    scheduled = LaneScheduler.dispatch(
-        tasks=tasks,
-        max_workers=config.workers,
-        log_dir=str(RUNS_ROOT / "logs"),
-        label="tui-chain",
+    dispatcher = MultiLaneDispatcher(
+        max_parallel_tasks=config.workers,
         event_callback=lambda payload: _emit_scheduler_event(event_sink, payload),
     )
-    errors.extend(scheduled.errors)
-    deduped, cross_confirmed = dedup_and_confirm(scheduled.all_hits)
+    all_hits = asyncio.run(dispatcher.run_tasks(tasks, label="tui-chain"))
+    errors.extend(dispatcher.errors)
+    deduped, cross_confirmed = dedup_and_confirm(all_hits)
     report = ReconReport(
         target_name=config.target or "unknown",
-        modules_run=scheduled.modules_run,
+        modules_run=list(dispatcher.modules_run),
         hits=deduped,
         errors=errors,
         started_at=datetime.now().isoformat(),

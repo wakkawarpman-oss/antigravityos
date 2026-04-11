@@ -35,6 +35,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Contract provenance smoke
+        run: python scripts/ci_verify_contract_provenance_smoke.py
+
       - name: Node coverage gate
         env:
           JWT_SECRET: ci-test-secret
@@ -42,3 +45,23 @@ jobs:
 
       - name: Python regression gate
         run: python -m pytest -q tests/*.py
+
+  contract-provenance-negative-diagnostic:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Contract provenance negative smoke (diagnostic)
+        run: |
+          python scripts/ci_verify_contract_provenance_smoke.py \
+            --namespace urn:hanna:contract-provenance:v99 \
+            --expect-fail

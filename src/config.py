@@ -134,3 +134,9 @@ ENTROPY_THRESHOLD = 3.8            # Shannon entropy above this → likely a tok
 # ── SQLite ───────────────────────────────────────────────────────
 
 SCHEMA_VERSION = 2                 # current schema version (PRAGMA user_version)
+
+# ── Runtime/export contracts ─────────────────────────────────────
+
+RUN_RESULT_SCHEMA_VERSION = 1
+ADAPTER_RESULT_SCHEMA_VERSION = 1
+CONTRACT_PROVENANCE_NAMESPACE = "urn:hanna:contract-provenance:v1"
