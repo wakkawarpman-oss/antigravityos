@@ -1,0 +1,36 @@
+name: Tool Health
+
+on:
+  schedule:
+    - cron: '0 8 * * 1,4'
+  workflow_dispatch:
+
+jobs:
+  tool-health-monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate tool-health report
+        run: |
+          python scripts/generate_tool_health_report.py \
+            --output .cache/reports/tool-health.json \
+            --markdown .cache/reports/tool-health.md
+
+      - name: Upload tool-health artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tool-health-report
+          path: |
+            .cache/reports/tool-health.json
+            .cache/reports/tool-health.md

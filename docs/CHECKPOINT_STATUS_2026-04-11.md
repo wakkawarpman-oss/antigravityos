@@ -43,3 +43,8 @@ Source: `.cache/stress_test_report.json`
 - Added weekly dependency report automation via GitHub Actions schedule (`dependency-report` workflow).
 - Added machine-readable and Markdown dependency snapshots (`.cache/reports/dependency-weekly.json`, `.cache/reports/dependency-weekly.md`).
 - Added local operator command `make dependency-report` for on-demand report generation.
+
+## Master Plan Execution Update (Tool health lane)
+- Added non-blocking tool-health reporting module for tool/submodule drift visibility.
+- Added local command `make tool-health-report` for operator diagnostics.
+- Added scheduled CI workflow (`tool-health`) with artifact export, intentionally non-blocking for core release lane.

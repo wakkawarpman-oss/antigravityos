@@ -1,4 +1,4 @@
-.PHONY: prelaunch-gate sprint-phase-guard release-guard dependency-report perf-install perf-unit perf-load perf-load-wrk perf-load-k6 perf-memory perf-stress perf-endurance perf-cpu perf-all perf-report perf-clean perf-files tookie tookie-help grafana-up grafana-down grafana-logs grafana-open osint-tools-install parse-test-full nifi-up nifi-down nifi-logs nifi-open spiderfoot-up spiderfoot-down spiderfoot-logs spiderfoot-local-up spiderfoot-local-down spiderfoot-local-scan spiderfoot-local-batch ci-guard-dryrun
+.PHONY: prelaunch-gate sprint-phase-guard release-guard dependency-report tool-health-report perf-install perf-unit perf-load perf-load-wrk perf-load-k6 perf-memory perf-stress perf-endurance perf-cpu perf-all perf-report perf-clean perf-files tookie tookie-help grafana-up grafana-down grafana-logs grafana-open osint-tools-install parse-test-full nifi-up nifi-down nifi-logs nifi-open spiderfoot-up spiderfoot-down spiderfoot-logs spiderfoot-local-up spiderfoot-local-down spiderfoot-local-scan spiderfoot-local-batch ci-guard-dryrun
 
 PERF_DIR := perf
 PERF_STUB_HOST ?= 127.0.0.1
@@ -36,6 +36,11 @@ dependency-report:
 	@python3 ./scripts/generate_dependency_report.py \
 		--output .cache/reports/dependency-weekly.json \
 		--markdown .cache/reports/dependency-weekly.md
+
+tool-health-report:
+	@python3 ./scripts/generate_tool_health_report.py \
+		--output .cache/reports/tool-health.json \
+		--markdown .cache/reports/tool-health.md
 
 tookie:
 	@./scripts/tookie.sh $(ARGS)
