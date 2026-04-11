@@ -71,3 +71,7 @@ Source: `.cache/stress_test_report.json`
 - Added process-lifecycle counters for CLI timeout handling: `timeout_events`, `kill_attempted`, `kill_succeeded`, `kill_failed`.
 - Timeout cleanup now emits explicit stderr marker when process-group kill fails (`[timeout][kill_failed]`) to improve postmortem visibility.
 - Added dedicated regression tests for process-group kill success/failure and timeout marker behavior.
+
+## Master Plan Execution Update (OPSEC proxy propagation hardening)
+- Fixed adapter proxy forwarding in `amass`, `subfinder`, and `shodan` CLI paths to prevent strict-mode false failures and potential proxy bypass paths.
+- Added dedicated regression tests validating proxy propagation for those adapters via shared `run_cli` helper.

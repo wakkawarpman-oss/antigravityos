@@ -41,7 +41,11 @@ class ShodanAdapter(ReconAdapter):
 
     def _run_shodan(self, target: str) -> list[ReconHit]:
         shodan_bin = os.environ.get("SHODAN_BIN", "shodan")
-        proc = run_cli([shodan_bin, "host", target, "--format", "json"], timeout=self.timeout * 8)
+        proc = run_cli(
+            [shodan_bin, "host", target, "--format", "json"],
+            timeout=self.timeout * 8,
+            proxy=self.proxy,
+        )
         if not proc:
             return []
         stderr_l = (proc.stderr or "").lower()

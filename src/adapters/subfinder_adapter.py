@@ -34,7 +34,11 @@ class SubfinderAdapter(ReconAdapter):
 
     def _run_subfinder(self, domain: str) -> list[ReconHit]:
         subfinder_bin = os.environ.get("SUBFINDER_BIN", "subfinder")
-        proc = run_cli([subfinder_bin, "-d", domain, "-silent"], timeout=self.timeout * 6)
+        proc = run_cli(
+            [subfinder_bin, "-d", domain, "-silent"],
+            timeout=self.timeout * 6,
+            proxy=self.proxy,
+        )
         if not proc or not proc.stdout.strip():
             return []
         hits: list[ReconHit] = []
