@@ -48,7 +48,25 @@ MODULE_CHECKS: Dict[str, Set[str]] = {
     "firms": {"firms_map_key"},
 }
 
-ALWAYS_CHECKS: Set[str] = {"tor_policy"}
+ALWAYS_CHECKS: Set[str] = {"tor_policy", "legacy_bridge_api_token"}
+
+
+def _legacy_bridge_token_check() -> PreflightCheck:
+    token = os.environ.get("OSINT_API_TOKEN", "").strip()
+    bridge_enabled = os.environ.get("HANNA_LEGACY_BRIDGE_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+    if token:
+        return PreflightCheck(name="legacy_bridge_api_token", status="ok", detail="set")
+    if bridge_enabled:
+        return PreflightCheck(
+            name="legacy_bridge_api_token",
+            status="fail",
+            detail="missing OSINT_API_TOKEN while HANNA_LEGACY_BRIDGE_ENABLED=1",
+        )
+    return PreflightCheck(
+        name="legacy_bridge_api_token",
+        status="warn",
+        detail="missing OSINT_API_TOKEN (set when legacy bridge is enabled)",
+    )
 
 
 def _build_path() -> str:
@@ -96,6 +114,7 @@ def _tor_policy_check() -> PreflightCheck:
 def run_preflight(modules: Optional[List[str]] = None) -> List[PreflightCheck]:
     checks: list[PreflightCheck] = []
     checks.append(_tor_policy_check())
+    checks.append(_legacy_bridge_token_check())
     tool_specs = [
         ("nuclei", "NUCLEI_BIN", "nuclei"),
         ("katana", "KATANA_BIN", "katana"),

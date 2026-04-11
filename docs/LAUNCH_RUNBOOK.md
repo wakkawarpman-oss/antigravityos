@@ -58,6 +58,28 @@ HANNA_PRELAUNCH_OUTPUT_DIR=/path/to/.cache/prelaunch/release-rc
 
 `HANNA_PRELAUNCH_OUT_DIR` may still appear in legacy examples, but `HANNA_PRELAUNCH_OUTPUT_DIR` is the primary variable for release procedures.
 
+### Strict Preflight For Legacy Bridge
+
+If release scope includes legacy bridge flows, enable strict bridge preflight policy:
+
+1. Set `HANNA_LEGACY_BRIDGE_ENABLED=1`.
+2. Set `OSINT_API_TOKEN` to a real non-placeholder token.
+3. Run preflight before execution and require pass.
+
+Operational example:
+
+```bash
+HANNA_LEGACY_BRIDGE_ENABLED=1 \
+OSINT_API_TOKEN='<real_token>' \
+./scripts/hanna preflight --modules pd-infra-quick --strict
+```
+
+Expected behavior:
+
+1. `legacy_bridge_api_token` is `fail` when bridge is enabled and token is missing.
+2. `legacy_bridge_api_token` is `ok` when token is present.
+3. When bridge is not enabled, missing token is reported as `warn` (visibility without hard block).
+
 For CI or external automation, read only `final-summary.json` through the gate helper:
 
 ```bash
