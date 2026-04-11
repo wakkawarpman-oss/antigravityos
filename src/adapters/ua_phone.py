@@ -37,7 +37,7 @@ class UAPhoneAdapter(ReconAdapter):
             try:
                 from adapters.getcontact_client import GetContactClient
                 self._gc_client = GetContactClient(
-                    token=token, aes_key=aes_key, timeout=self.timeout
+                    token=token, aes_key=aes_key, timeout=self.timeout, proxy=self.proxy
                 )
                 log.info("GetContact client initialized (token=%s...)", token[:8])
             except Exception as exc:

@@ -22,6 +22,7 @@ import urllib.request
 import urllib.error
 from cryptography.hazmat.primitives.ciphers import algorithms
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from config import REQUIRE_PROXY
 
 log = logging.getLogger("hanna.recon.getcontact")
 
@@ -86,12 +87,17 @@ class GetContactClient:
         tags = client.get_tags("+380930075122")
     """
 
-    def __init__(self, token: str, aes_key: str, timeout: float = 10.0) -> None:
+    def __init__(self, token: str, aes_key: str, timeout: float = 10.0, proxy: str | None = None) -> None:
         if not token or not aes_key:
             raise ValueError("GetContact requires both TOKEN and AES_KEY")
+        if REQUIRE_PROXY and not proxy:
+            raise RuntimeError("HANNA_REQUIRE_PROXY=1 but no proxy provided for GetContact client")
         self._token = token.strip()
         self._aes = _AESCipher(aes_key.strip())
         self._timeout = timeout
+        self._proxy = proxy.strip() if proxy else None
+        proxy_handler = urllib.request.ProxyHandler({"http": self._proxy, "https": self._proxy}) if self._proxy else urllib.request.ProxyHandler({})
+        self._opener = urllib.request.build_opener(proxy_handler)
 
     # ── Public API ───────────────────────────────────────────────
 
@@ -192,7 +198,7 @@ class GetContactClient:
 
         req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
         try:
-            resp = urllib.request.urlopen(req, timeout=self._timeout)  # nosec B310
+            resp = self._opener.open(req, timeout=self._timeout)
             raw_body = resp.read().decode("utf-8")
             resp_data = json.loads(raw_body)
             decrypted = self._aes.decrypt(resp_data["data"])

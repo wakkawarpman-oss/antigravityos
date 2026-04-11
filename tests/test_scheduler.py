@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+import time
+
 from adapters.base import ReconHit
+from adapters.base import ReconAdapter
+from schedulers.dispatcher import MultiLaneDispatcher
 from schedulers.lanes import LaneScheduler
 from schedulers.lanes import dedup_and_confirm
+from worker import ReconTask
 
 
 def test_scheduler_emit_noop_without_callback():
@@ -59,3 +65,42 @@ def test_scheduler_emits_tor_rotation_events_for_empty_dispatch(monkeypatch):
     event_types = [event.get("type") for event in events]
     assert "tor_rotation_policy" in event_types
     assert "tor_rotation_checkpoint" in event_types
+
+
+class _HangingAdapter(ReconAdapter):
+    name = "hanging"
+    region = "global"
+
+    def search(self, target_name, known_phones, known_usernames):
+        return []
+
+    async def search_async(self, target_name, known_phones, known_usernames):
+        await asyncio.sleep(0.2)
+        if False:
+            yield  # pragma: no cover
+
+
+def test_async_dispatcher_enforces_worker_timeout_for_hanging_task():
+    task = ReconTask(
+        module_name="hanging",
+        priority=1,
+        adapter_cls=_HangingAdapter,
+        target_name="example.com",
+        known_phones=[],
+        known_usernames=[],
+        lane="fast",
+        proxy="socks5h://127.0.0.1:9050",
+        timeout=1.0,
+        worker_timeout=0.05,
+        leak_dir=None,
+    )
+
+    dispatcher = MultiLaneDispatcher(max_parallel_tasks=1)
+
+    started = time.monotonic()
+    hits = asyncio.run(dispatcher.run_tasks([task], label="timeout-test"))
+    elapsed = time.monotonic() - started
+
+    assert hits == []
+    assert any(err.get("module") == "hanging" and err.get("error_kind") == "timeout" for err in dispatcher.errors)
+    assert elapsed < 0.2

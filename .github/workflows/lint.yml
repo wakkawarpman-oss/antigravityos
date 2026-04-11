@@ -45,6 +45,9 @@ jobs:
       - name: Python security gate
         run: bandit -r src scanners utils preflight.py main.py -f txt
 
+      - name: Adapter direct-network guard
+        run: python scripts/network_guard.py
+
       - name: Node tests gate
         run: npm test
 

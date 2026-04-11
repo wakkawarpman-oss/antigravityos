@@ -3,6 +3,8 @@ from __future__ import annotations
 import pytest
 
 from adapters import cli_common
+from adapters.censys_adapter import CensysAdapter
+from adapters.getcontact_client import GetContactClient
 from adapters.web_search import WebSearchAdapter
 from net import proxy_aware_request
 
@@ -28,3 +30,29 @@ def test_proxy_aware_request_requires_proxy(monkeypatch):
     monkeypatch.setattr(net_mod, "REQUIRE_PROXY", True)
     with pytest.raises(RuntimeError):
         proxy_aware_request("https://example.com", method="HEAD", timeout=1.0, proxy=None)
+
+
+def test_getcontact_client_requires_proxy_when_enforced(monkeypatch):
+    import adapters.getcontact_client as gc_mod
+
+    monkeypatch.setattr(gc_mod, "REQUIRE_PROXY", True)
+    with pytest.raises(RuntimeError):
+        GetContactClient(
+            token="token",
+            aes_key="00112233445566778899aabbccddeeff",
+            timeout=1.0,
+            proxy=None,
+        )
+
+
+def test_censys_request_uses_shared_transport(monkeypatch):
+    adapter = CensysAdapter(proxy="socks5h://127.0.0.1:9050", timeout=1.0)
+
+    def _fake_post(url, data, headers=None):
+        assert url.startswith("https://search.censys.io/api/v2/")
+        assert "Authorization" in (headers or {})
+        return 200, '{"result":{"hits":[]}}'
+
+    monkeypatch.setattr(adapter, "_post", _fake_post)
+    payload = adapter._request("/hosts/search", {"q": "example.com"}, "id", "secret")
+    assert payload == {"result": {"hits": []}}

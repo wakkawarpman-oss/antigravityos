@@ -136,26 +136,34 @@ class MultiLaneDispatcher:
                 timeout=task.timeout,
                 leak_dir=task.leak_dir
             )
-            
+
             hit_count = 0
-            # 1. Prefer native search_async
-            # 2. Fall back to search_async default (which wraps sync search in thread)
-            async for hit in adapter.search_async(
-                task.target_name,
-                task.known_phones,
-                task.known_usernames
-            ):
-                hit_count += 1
-                self.all_hits.append(hit)
-                
-                # EMIT HIT IMMEDIATELY TO UI
-                self._emit({
-                    "type": "hit_found",
-                    "label": label,
-                    "module": mod_name,
-                    "hit": hit.to_dict(),
-                    "total_hits": hit_count
-                })
+
+            async def _stream_hits() -> None:
+                nonlocal hit_count
+                # 1. Prefer native search_async
+                # 2. Fall back to search_async default (which wraps sync search in thread)
+                async for hit in adapter.search_async(
+                    task.target_name,
+                    task.known_phones,
+                    task.known_usernames
+                ):
+                    hit_count += 1
+                    self.all_hits.append(hit)
+
+                    # EMIT HIT IMMEDIATELY TO UI
+                    self._emit({
+                        "type": "hit_found",
+                        "label": label,
+                        "module": mod_name,
+                        "hit": hit.to_dict(),
+                        "total_hits": hit_count
+                    })
+
+            if task.worker_timeout and task.worker_timeout > 0:
+                await asyncio.wait_for(_stream_hits(), timeout=float(task.worker_timeout))
+            else:
+                await _stream_hits()
 
             elapsed = time.monotonic() - t0
             self._emit({
@@ -167,10 +175,24 @@ class MultiLaneDispatcher:
                 "hit_count": hit_count,
             })
 
+        except asyncio.TimeoutError:
+            elapsed = time.monotonic() - t0
+            msg = f"TIMEOUT ({int(task.worker_timeout)}s)"
+            self.errors.append({"module": mod_name, "error": msg, "error_kind": "timeout"})
+            self._emit({
+                "type": "task_timeout",
+                "label": label,
+                "lane": task.lane,
+                "module": mod_name,
+                "error": msg,
+                "elapsed_sec": round(elapsed, 2),
+            })
+            log.error("[%s] Task timeout: %s", mod_name, msg)
+
         except Exception as exc:
             elapsed = time.monotonic() - t0
             err_msg = str(exc)
-            self.errors.append({"module": mod_name, "error": err_msg})
+            self.errors.append({"module": mod_name, "error": err_msg, "error_kind": "adapter_error"})
             self._emit({
                 "type": "task_error",
                 "label": label,

@@ -3,9 +3,7 @@ from __future__ import annotations
 
 import json
 import os
-import urllib.error
 import urllib.parse
-import urllib.request
 from datetime import datetime
 from typing import Optional, Any, Union, List, Dict
 from pydantic import ValidationError
@@ -51,29 +49,23 @@ class CensysAdapter(ReconAdapter):
         return list(dict.fromkeys(queries))
 
     def _request(self, path: str, payload: dict, api_id: str, api_secret: str) -> Optional[dict]:
-        data = json.dumps(payload).encode("utf-8")
         url = f"{self._API_BASE}{path}"
         parsed_url = urllib.parse.urlparse(url)
         if (parsed_url.scheme or "").lower() not in ALLOWED_SCHEMES:
             raise ValueError(f"Disallowed scheme: {parsed_url.scheme}")
-        req = urllib.request.Request(
-            url,
-            data=data,
-            headers={
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                "User-Agent": "HANNA/2026",
-            },
-            method="POST",
-        )
         auth = f"{api_id}:{api_secret}".encode("utf-8")
         import base64
-        req.add_header("Authorization", f"Basic {base64.b64encode(auth).decode('ascii')}")
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "HANNA/2026",
+            "Authorization": f"Basic {base64.b64encode(auth).decode('ascii')}",
+        }
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout * 2) as resp:  # nosec B310
-                body = resp.read().decode("utf-8", errors="replace")
-                return json.loads(body)
-        except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, TimeoutError):
+            status, body = self._post(url, payload, headers=headers)
+            if status != 200 or not body:
+                return None
+            return json.loads(body)
+        except (json.JSONDecodeError, TimeoutError):
             return None
 
     def _query_hosts(self, query: str, api_id: str, api_secret: str) -> list[ReconHit]:
